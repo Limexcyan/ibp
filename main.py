@@ -15,7 +15,7 @@ import hypnettorch.utils.hnet_regularizer as hreg
 from torch import nn
 from datetime import datetime
 from itertools import product
-from torchpercentile import Percentile
+#from torchpercentile import Percentile
 from copy import deepcopy
 from retry import retry
 
@@ -248,9 +248,22 @@ def prepare_network_sparsity(weights, threshold, verbose=False):
     for i in range(len(weights)):
         revalued_layer = torch.abs(torch.tanh(weights[i]))
         if i < (len(weights) - 1):
-            percentile_value = Percentile()(
-                revalued_layer.flatten(), [threshold]
-            )
+            #percentile_value = Percentile()(
+            #    revalued_layer.flatten(), [threshold]
+            #)
+            sorted_tensor, _ = torch.sort(revalued_layer.flatten())
+            percentile_index = len(sorted_tensor) - 1
+            lower_index = int(
+                torch.floor(torch.tensor(percentile_index * threshold/100, dtype=torch.float32)).item())
+            upper_index = int(
+                torch.ceil(torch.tensor(percentile_index * threshold/100, dtype=torch.float32)).item())
+            if lower_index == upper_index:
+                percentile_value = sorted_tensor[lower_index]
+            else:
+                lower_part = sorted_tensor[lower_index] * (1 - percentile_index - lower_index)
+                upper_part = sorted_tensor[upper_index] * (percentile_index - lower_index)
+                percentile_value = lower_part + upper_part
+
             assert type(percentile_value.item()) == float
             zeros_weights = torch.zeros(
                 revalued_layer.shape, device=revalued_layer.device
@@ -638,30 +651,31 @@ def train_single_task(
             no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
                 target_network
             )
-            for no_of_layer in range(len(masks)):
-                if parameters["norm_regularizer_masking"]:
-                    loss_norm_target_regularizer += torch.norm(
-                        (
-                            target_network.weights[
-                                no_of_layer + no_of_batch_norm_layers
-                            ]
-                            - previous_target_weights[
-                                no_of_layer + no_of_batch_norm_layers
-                            ]
-                        )
-                        * masks[no_of_layer],
-                        p=parameters["norm"],
-                    )
-                else:
-                    loss_norm_target_regularizer += torch.norm(
-                        target_network.weights[
-                            no_of_layer + no_of_batch_norm_layers
-                        ]
-                        - previous_target_weights[
-                            no_of_layer + no_of_batch_norm_layers
-                        ],
-                        p=parameters["norm"],
-                    )
+            #for no_of_layer in range(len(masks)):
+                # if parameters["norm_regularizer_masking"]:
+                #     loss_norm_target_regularizer += torch.norm(
+                #         (
+                #             target_network.weights[
+                #                 no_of_layer + no_of_batch_norm_layers
+                #             ]
+                #             - previous_target_weights[
+                #                 no_of_layer + no_of_batch_norm_layers
+                #             ]
+                #         )
+                #         * masks[no_of_layer],
+                #         p=parameters["norm"],
+                #     )
+                # else:
+                #     loss_norm_target_regularizer += torch.norm(
+                #         target_network.weights[
+                #             no_of_layer + no_of_batch_norm_layers
+                #         ]
+                #         - previous_target_weights[
+                #             no_of_layer + no_of_batch_norm_layers
+                #         ],
+                #         p=parameters["norm"],
+                #     )
+
         target_weights = apply_mask_to_weights_of_network(target_network, masks)
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
@@ -998,7 +1012,7 @@ def main_running_experiments(path_to_datasets, parameters):
 if __name__ == "__main__":
     unittest_prepare_network_sparsity()
     path_to_datasets = "./Data"
-    dataset = "TinyImageNet"
+    dataset = "SplitMNIST"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet',
     # 'CIFAR100_FeCAM_setup'
     part = 1

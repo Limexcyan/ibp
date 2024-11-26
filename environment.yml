@@ -193,9 +193,8 @@ dependencies:
     - smmap==5.0.1
     - tifffile==2021.11.2
     - tomli==2.0.1
-    - torch==1.5.0+cu101
-    - torchsearchsorted==1.1
-    - torchvision==0.6.0+cu101
+    - torch==1.5.0
+    - torchvision==0.6.0
     - tzlocal==5.1
     - urllib3==2.0.7
     - wandb==0.15.12

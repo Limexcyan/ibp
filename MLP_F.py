@@ -16,6 +16,7 @@ from hypnettorch.utils.torch_utils import init_params
 
 from copy import deepcopy
 
+from torch.autograd import Variable
 
 class MLPFeCAM(nn.Module, MainNetInterface):
     """Implementation of a Multi-Layer Perceptron (MLP).
@@ -166,6 +167,7 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         context_mod_gain_softplus=False,
         out_fn=None,
         verbose=True,
+        epsilon=0,
     ):
         # FIXME find a way using super to handle multiple inheritance.
         nn.Module.__init__(self)
@@ -213,6 +215,7 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         # to the weight matrix and bias vector of the last layer.
         self._mask_fc_out = True
         self._has_linear_out = True if out_fn is None else False
+        self.epsilon = epsilon
 
         if use_spectral_norm and no_weights:
             raise ValueError(
@@ -582,6 +585,8 @@ hyper_shapes_distilled` and the current statistics will be returned by the
                 + 'Hence, "weights" option may not be None.'
             )
 
+        eps = Variable(self.epsilon * torch.ones_like(x, requires_grad=False))
+
         ############################################
         ### Extract which weights should be used ###
         ############################################
@@ -737,6 +742,9 @@ hyper_shapes_distilled` and the current statistics will be returned by the
             )
             cm_ind += 1
 
+        # mu = self.mu.T
+        # eps = self.eps.T
+
         for l in range(len(w_weights)):
             W = w_weights[l]
             if self.has_bias:
@@ -748,6 +756,9 @@ hyper_shapes_distilled` and the current statistics will be returned by the
             if i == (len(weights) - 1):
                 features = deepcopy(hidden)
             hidden = self._spec_norm(F.linear(hidden, W, bias=b))
+
+            # mu = W @ mu + b
+            # eps = torch.abs(W) @ eps
 
             # Only for hidden layers.
             if l < len(w_weights) - 1:
@@ -782,6 +793,8 @@ hyper_shapes_distilled` and the current statistics will be returned by the
                 # Non-linearity
                 if self._a_fun is not None:
                     hidden = self._a_fun(hidden)
+                    # z_l, z_u = self._a_fun(mu - eps), self._a_fun(mu + eps)
+                    # mu, eps = (z_u + z_l) / 2, (z_u - z_l) / 2
 
                 # Context-dependent modulation (post-activation).
                 if self._use_context_mod and self._context_mod_post_activation:
@@ -791,6 +804,8 @@ hyper_shapes_distilled` and the current statistics will be returned by the
                         ckpt_id=cmod_cond,
                     )
                     cm_ind += 1
+            # mu = mu.T
+            # eps = eps.T
 
         # Context-dependent modulation in output layer.
         if self._use_context_mod and not self._no_last_layer_context_mod:
@@ -801,9 +816,9 @@ hyper_shapes_distilled` and the current statistics will be returned by the
             )
 
         if self._out_fn is not None:
-            return self._out_fn(hidden), hidden
+            return self._out_fn(hidden), hidden # return mu-eps, mu+eps, mu, eps
 
-        return [hidden, features]
+        return [hidden, features] # return mu-eps, mu+eps, mu, eps
 
     def distillation_targets(self):
         """Targets to be distilled after training.
