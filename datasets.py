@@ -564,7 +564,7 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
                 "saving_folder": "./Results/split_mnist_test/",
             }
         hyperparams["lr_scheduler"] = False
-        hyperparams["target_network"] = "MLP"
+        hyperparams["target_network"] = "epsMLP"
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"

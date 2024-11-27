@@ -8,6 +8,8 @@ import seaborn as sns
 import torch.optim as optim
 from hypnettorch.mnets import MLP
 from hypnettorch.mnets.resnet import ResNet
+
+import epsMLP
 from ZenkeNet64 import ZenkeNet
 from hypnettorch.hnets import HMLP
 from hypnettorch.hnets.chunked_mlp_hnet import ChunkedHMLP
@@ -803,6 +805,14 @@ def build_multiple_task_experiment(
     # or ResNet/ZenkeNet with internal weights
     if parameters["target_network"] == "MLP":
         target_network = MLP(
+            n_in=parameters["input_shape"],
+            n_out=output_shape,
+            hidden_layers=parameters["target_hidden_layers"],
+            use_bias=parameters["use_bias"],
+            no_weights=False,
+        ).to(parameters["device"])
+    elif parameters["target_network"] == "epsMLP":
+        target_network = epsMLP.epsMLP(
             n_in=parameters["input_shape"],
             n_out=output_shape,
             hidden_layers=parameters["target_hidden_layers"],
