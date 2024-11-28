@@ -15,6 +15,7 @@ from hypnettorch.utils.context_mod_layer import ContextModLayer
 from hypnettorch.utils.torch_utils import init_params
 from networkx.classes.filters import hide_nodes
 
+from torch.autograd import Variable
 
 class epsMLP(nn.Module, MainNetInterface):
     """Implementation of a Multi-Layer Perceptron (MLP).
@@ -654,8 +655,8 @@ hyper_shapes_distilled` and the current statistics will be returned by the
                 b = b_weights[l]
             else:
                 b = None
-            # eps = (Variable(self.epsilon * torch.ones_like(hidden), requires_grad=False)).T
-            eps = (self.epsilon * torch.ones_like(hidden)).T
+            eps = (Variable(self.epsilon * torch.ones_like(hidden), requires_grad=False)).T
+            #eps = (self.epsilon * torch.ones_like(hidden)).T
 
             # Linear layer.
             hidden = self._spec_norm(F.linear(hidden, W, bias=b))
@@ -711,10 +712,10 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         if self._out_fn is not None:
             z_lower = self._out_fn(hidden - eps)
             z_upper = self._out_fn(hidden + eps)
-            return self._out_fn(hidden), hidden
-            #return [z_upper + z_lower / 2, z_upper - z_lower / 2], [hidden, eps]
+            #return self._out_fn(hidden), hidden
+            return [z_upper + z_lower / 2, z_upper - z_lower / 2], [hidden, eps]
 
-        return hidden #[hidden, eps]
+        return [hidden, eps]
 
     def distillation_targets(self):
         """Targets to be distilled after training.

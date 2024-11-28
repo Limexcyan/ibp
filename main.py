@@ -30,7 +30,6 @@ from datasets import (
     prepare_tinyimagenet_tasks,
 )
 
-
 def set_seed(value):
     """
     Set deterministic results according to the given value
@@ -214,8 +213,12 @@ def calculate_accuracy(
                 weights=weights,
                 condition=parameters["number_of_task"],
             )
+            if len(logits)==2:
+                logits, logits_eps = logits
         else:
             logits = target_network.forward(test_input, weights=weights)
+            if len(logits)==2:
+                logits, logits_eps = logits
         predictions = logits.max(dim=1)[1]
 
         accuracy = (
@@ -685,7 +688,47 @@ def train_single_task(
         prediction = target_network.forward(
             tensor_input, weights=target_weights
         )
-        loss_current_task = criterion(prediction, gt_output)
+        if len(prediction) == 2: # equivalently target_network = epsMLP
+            start_eps = target_network.epsilon
+            default_eps = start_eps
+            N = 4
+            NN = 8
+            kappa = 1.0
+            for i in range(N):
+                if i < NN:
+                    iter_eps = (i / (NN - 1)) * default_eps # * torch.ones_like(tensor_input)
+                    target_network.epsilon = iter_eps
+
+                prediction, predicted_eps = target_network.forward(tensor_input, weights=target_weights)
+
+                z_lower = prediction - predicted_eps.T
+                z_upper = prediction + predicted_eps.T
+
+                loss_fit = criterion(prediction, gt_output)
+
+                z = torch.where(nn.functional.one_hot(gt_output, prediction.size(-1)).bool(), z_lower, z_upper)
+                loss_spec = criterion(z, gt_output)
+
+                if i < NN:
+                    kappa = 1 - 0.125 * i
+
+                loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
+                err = (prediction.argmax(dim=1) != gt_output).float().sum()
+                worst_case_err =  (z.argmax(dim=1) != gt_output).float().sum()
+
+                #print(target_network.epsilon)
+                optimizer.zero_grad()
+                loss_current_task.backward(retain_graph=True)
+                #optimizer.step()
+                # with torch.no_grad():
+                #     if i %  2 == 0:
+                #         print(f'epsilon: {default_eps} '
+                #               f'it: {i} loss: {loss_current_task.item()}'
+                #               f' error: {err} '
+                #               f'worst: {worst_case_err}')
+            target_network.epsilon = start_eps
+        else:
+            loss_current_task = criterion(prediction, gt_output)
         loss_regularization = 0.0
         if current_no_of_task > 0:
             loss_regularization = hreg.calc_fix_target_reg(
@@ -710,8 +753,9 @@ def train_single_task(
             / max(1, current_no_of_task)
             + parameters["lambda"] * loss_norm_target_regularizer
         )
-        loss.backward()
-        optimizer.step()
+        if len(prediction) != 2:
+            loss.backward()
+            optimizer.step()
 
         if parameters["number_of_epochs"] is None:
             condition = (iteration % 100 == 0) or (
@@ -818,6 +862,7 @@ def build_multiple_task_experiment(
             hidden_layers=parameters["target_hidden_layers"],
             use_bias=parameters["use_bias"],
             no_weights=False,
+            epsilon=0.01,
         ).to(parameters["device"])
     elif parameters["target_network"] == "ResNet":
         target_network = ResNet(
