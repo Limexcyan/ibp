@@ -657,7 +657,30 @@ def train_single_task(
             no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
                 target_network
             )
-
+            for no_of_layer in range(len(masks)):
+                if parameters["norm_regularizer_masking"]:
+                    loss_norm_target_regularizer += torch.norm(
+                        (
+                                target_network.weights[
+                                    no_of_layer + no_of_batch_norm_layers
+                                    ]
+                                - previous_target_weights[
+                                    no_of_layer + no_of_batch_norm_layers
+                                    ]
+                        )
+                        * masks[no_of_layer],
+                        p=parameters["norm"],
+                    )
+                else:
+                    loss_norm_target_regularizer += torch.norm(
+                        target_network.weights[
+                            no_of_layer + no_of_batch_norm_layers
+                        ]
+                        - previous_target_weights[
+                            no_of_layer + no_of_batch_norm_layers
+                        ],
+                        p=parameters["norm"],
+                    )
         target_weights = apply_mask_to_weights_of_network(target_network, masks)
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
@@ -677,10 +700,6 @@ def train_single_task(
             kappa = 1 - (iteration * 0.0005)
 
             loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
-            optimizer.zero_grad()
-            loss_current_task.backward()
-            optimizer.step()
-            #print(f' loss: {loss_current_task.item()}')
             target_network.epsilon = default_eps
 
             # N = 10000
@@ -744,9 +763,9 @@ def train_single_task(
             / max(1, current_no_of_task)
             + parameters["lambda"] * loss_norm_target_regularizer
         )
-        if parameters["target_network"] != "epsMLP":
-            loss.backward()
-            optimizer.step()
+
+        loss.backward()
+        optimizer.step()
 
         if parameters["number_of_epochs"] is None:
             condition = (iteration % 100 == 0) or (
