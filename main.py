@@ -9,7 +9,7 @@ import torch.optim as optim
 from hypnettorch.mnets import MLP
 from hypnettorch.mnets.resnet import ResNet
 
-import epsMLP
+from epsMLP import epsMLP
 from ZenkeNet64 import ZenkeNet
 from hypnettorch.hnets import HMLP
 from hypnettorch.hnets.chunked_mlp_hnet import ChunkedHMLP
@@ -214,11 +214,12 @@ def calculate_accuracy(
                 condition=parameters["number_of_task"],
             )
             if len(logits)==2:
-                logits, logits_eps = logits
+                logits, _ = logits
         else:
             logits = target_network.forward(test_input, weights=weights)
+            #print(len(logits))
             if len(logits)==2:
-                logits, logits_eps = logits
+                logits, _ = logits
         predictions = logits.max(dim=1)[1]
 
         accuracy = (
@@ -656,79 +657,69 @@ def train_single_task(
             no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
                 target_network
             )
-            #for no_of_layer in range(len(masks)):
-                # if parameters["norm_regularizer_masking"]:
-                #     loss_norm_target_regularizer += torch.norm(
-                #         (
-                #             target_network.weights[
-                #                 no_of_layer + no_of_batch_norm_layers
-                #             ]
-                #             - previous_target_weights[
-                #                 no_of_layer + no_of_batch_norm_layers
-                #             ]
-                #         )
-                #         * masks[no_of_layer],
-                #         p=parameters["norm"],
-                #     )
-                # else:
-                #     loss_norm_target_regularizer += torch.norm(
-                #         target_network.weights[
-                #             no_of_layer + no_of_batch_norm_layers
-                #         ]
-                #         - previous_target_weights[
-                #             no_of_layer + no_of_batch_norm_layers
-                #         ],
-                #         p=parameters["norm"],
-                #     )
 
         target_weights = apply_mask_to_weights_of_network(target_network, masks)
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
         # give 'current_no_of_task' as a value for the 'condition' argument.
-        prediction = target_network.forward(
-            tensor_input, weights=target_weights
-        )
-        if len(prediction) == 2: # equivalently target_network = epsMLP
-            start_eps = target_network.epsilon
-            default_eps = start_eps
-            N = 4
-            NN = 8
-            kappa = 1.0
-            for i in range(N):
-                if i < NN:
-                    iter_eps = (i / (NN - 1)) * default_eps # * torch.ones_like(tensor_input)
-                    target_network.epsilon = iter_eps
+        if parameters["target_network"] == "epsMLP":
+            default_eps = target_network.epsilon
+            target_network.epsilon = (iteration / 2000) * default_eps
+            prediction, eps_prediction = target_network.forward(
+                tensor_input, weights=target_weights
+            )
+            z_lower = prediction - eps_prediction.T
+            z_upper = prediction + eps_prediction.T
+            z = torch.where((nn.functional.one_hot(gt_output, prediction.size(-1))).bool(), z_lower, z_upper)
 
-                prediction, predicted_eps = target_network.forward(tensor_input, weights=target_weights)
+            loss_spec = criterion(z, gt_output)
+            loss_fit = criterion(prediction, gt_output)
+            kappa = 1 - (iteration * 0.0005)
 
-                z_lower = prediction - predicted_eps.T
-                z_upper = prediction + predicted_eps.T
+            loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
+            optimizer.zero_grad()
+            loss_current_task.backward()
+            optimizer.step()
+            #print(f' loss: {loss_current_task.item()}')
+            target_network.epsilon = default_eps
 
-                loss_fit = criterion(prediction, gt_output)
-
-                z = torch.where(nn.functional.one_hot(gt_output, prediction.size(-1)).bool(), z_lower, z_upper)
-                loss_spec = criterion(z, gt_output)
-
-                if i < NN:
-                    kappa = 1 - 0.125 * i
-
-                loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
-                err = (prediction.argmax(dim=1) != gt_output).float().sum()
-                worst_case_err =  (z.argmax(dim=1) != gt_output).float().sum()
-
-                #print(target_network.epsilon)
-                optimizer.zero_grad()
-                loss_current_task.backward(retain_graph=True)
-                #optimizer.step()
-                # with torch.no_grad():
-                #     if i %  2 == 0:
-                #         print(f'epsilon: {default_eps} '
-                #               f'it: {i} loss: {loss_current_task.item()}'
-                #               f' error: {err} '
-                #               f'worst: {worst_case_err}')
-            target_network.epsilon = start_eps
+            # N = 10000
+            # NN = 2 * N
+            # kappa = 1
+            # default_eps = target_network.epsilon
+            # for i in range(N):
+            #     if i < NN:
+            #         target_network.epsilon = (i / NN) * default_eps
+            #     current_weights = [w.clone().detach().requires_grad_(True) for w in target_weights]
+            #     prediction, eps_prediction = target_network.forward(tensor_input, weights=current_weights)
+            #     z_lower = prediction - eps_prediction.T
+            #     z_upper = prediction + eps_prediction.T
+            #     z = torch.where((nn.functional.one_hot(gt_output, prediction.size(-1))).bool(), z_lower, z_upper)
+            #
+            #     loss_spec = criterion(z, gt_output)
+            #     loss_fit = criterion(prediction, gt_output)
+            #     kappa = 1 - 0.00005 * i if i <= NN else 1.0
+            #
+            #     loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
+            #     err = (prediction.argmax(dim=1) != gt_output).float().sum()
+            #     worst_case_err = (z.argmax(dim=1) != gt_output).float().sum()
+            #     with torch.no_grad():
+            #         if (i % 1000) == 0:
+            #             print(f'epsilon: {target_network.epsilon} '
+            #                   f'it: {i} loss: {loss_current_task.item()}'
+            #                   f' error: {err} '
+            #                   f'worst: {worst_case_err}')
+            #     optimizer.zero_grad()
+            #     loss_current_task.backward()
+            #     optimizer.step()
+            # target_weights = current_weights
+            # target_network.epsilon = default_eps
         else:
+            prediction = target_network.forward(
+                tensor_input, weights=target_weights
+            )
             loss_current_task = criterion(prediction, gt_output)
+            print(f' loss: {loss_current_task.item()}')
         loss_regularization = 0.0
         if current_no_of_task > 0:
             loss_regularization = hreg.calc_fix_target_reg(
@@ -753,7 +744,7 @@ def train_single_task(
             / max(1, current_no_of_task)
             + parameters["lambda"] * loss_norm_target_regularizer
         )
-        if len(prediction) != 2:
+        if parameters["target_network"] != "epsMLP":
             loss.backward()
             optimizer.step()
 
@@ -856,13 +847,13 @@ def build_multiple_task_experiment(
             no_weights=False,
         ).to(parameters["device"])
     elif parameters["target_network"] == "epsMLP":
-        target_network = epsMLP.epsMLP(
+        target_network = epsMLP(
             n_in=parameters["input_shape"],
             n_out=output_shape,
             hidden_layers=parameters["target_hidden_layers"],
             use_bias=parameters["use_bias"],
             no_weights=False,
-            epsilon=0.01,
+            epsilon=0.05,
         ).to(parameters["device"])
     elif parameters["target_network"] == "ResNet":
         target_network = ResNet(
