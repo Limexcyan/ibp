@@ -6,7 +6,7 @@ from hypnettorch.data.special.split_cifar import SplitCIFAR100Data
 from hypnettorch.data.special.split_mnist import get_split_mnist_handlers
 from TinyImageNet import TinyImageNet
 from CIFAR100_FeCAM import SplitCIFAR100Data_FeCAM
-
+import attacks
 
 def generate_random_permutations(
     shape_of_data_instance, number_of_permutations
@@ -268,10 +268,10 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
             hyperparams = {
                 "embedding_sizes": [24],
                 "learning_rates": [0.001],
-                "batch_sizes": [128],
+                "batch_sizes": [32],
                 "norm_regularizer_masking_opts": [True, False],
                 "betas": [0.001, 0.0005, 0.005],
-                "hypernetworks_hidden_layers": [[100, 100]],
+                "hypernetworks_hidden_layers": [[256, 256, 10]],
                 "sparsity_parameters": [0],
                 "lambdas": [0.001, 0.0005],
                 "best_model_selection_method": "val_loss",
@@ -287,27 +287,27 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
                 "embedding_sizes": [24],
                 "sparsity_parameters": [0],
                 "learning_rates": [0.001],
-                "batch_sizes": [128],
+                "batch_sizes": [32],
                 "betas": [0.0005],
                 "lambdas": [0.001],
                 "norm_regularizer_masking_opts": [True],
-                "hypernetworks_hidden_layers": [[100, 100]],
+                "hypernetworks_hidden_layers": [[256, 256, 10]],
                 "best_model_selection_method": "last_model",
                 "saving_folder": "./Results/permuted_mnist_best_hyperparams/",
             }
 
         # Both in the grid search and individual runs
         hyperparams["lr_scheduler"] = False
-        hyperparams["number_of_iterations"] = 5000
-        hyperparams["number_of_epochs"] = None
-        hyperparams["no_of_validation_samples"] = 5000
-        hyperparams["no_of_validation_samples_per_class"] = 500
-        hyperparams["target_hidden_layers"] = [1000, 1000]
-        hyperparams["target_network"] = "MLP"
+        hyperparams["number_of_iterations"] = 3125
+        hyperparams["number_of_epochs"] = 10
+        hyperparams["no_of_validation_samples"] = 1000
+        hyperparams["no_of_validation_samples_per_class"] = 100
+        hyperparams["target_hidden_layers"] = [256, 256, 10]
+        hyperparams["target_network"] = "epsMLP"
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
-        hyperparams["chunk_size"] = 100
+        hyperparams["chunk_size"] = 25
         hyperparams["chunk_emb_size"] = 8
         hyperparams["use_chunks"] = False
         hyperparams["adaptive_sparsity"] = True
@@ -315,7 +315,7 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
         # Directly related to the MNIST dataset
         hyperparams["padding"] = 2
         hyperparams["shape"] = (28 + 2 * hyperparams["padding"]) ** 2
-        hyperparams["number_of_tasks"] = 10
+        hyperparams["number_of_tasks"] = 2
         hyperparams["augmentation"] = False
 
     elif dataset == "CIFAR100":

@@ -10,6 +10,9 @@ from hypnettorch.mnets import MLP
 from hypnettorch.mnets.resnet import ResNet
 
 from epsMLP import epsMLP
+import attacks
+import metrics
+
 from ZenkeNet64 import ZenkeNet
 from hypnettorch.hnets import HMLP
 from hypnettorch.hnets.chunked_mlp_hnet import ChunkedHMLP
@@ -618,6 +621,10 @@ def train_single_task(
                 verbose=True,
             )
     for iteration in range(parameters["number_of_iterations"]):
+        # Attack type
+        # Possible types: FGSM, BIM, PGD, AutoAttack
+        attack = 'FGSM'
+
         # hypernetwork.train()
         # target_network.train()
         current_batch = current_dataset_instance.next_train_batch(
@@ -630,6 +637,14 @@ def train_single_task(
             current_batch[1], parameters["device"], mode="train"
         )
         gt_output = tensor_output.max(dim=1)[1]
+
+        if attack == 'FGSM':
+            tensor_input = attacks.fgsm_attack(tensor_input, ksi=20/255)
+        elif attack == 'BIM':
+            tensor_input = attacks.bim_attack(tensor_input, gt_output, 40, ksi=40/255, alpha=2/255)
+        elif attack == 'PGD':
+            tensor_input = attacks.pgd_attack(tensor_input, gt_output,40, ksi=40/255, alpha=2/255, random_start=True)
+
         optimizer.zero_grad()
         # Get weights of the hypernetwork and apply binary mask
         # to the target network
@@ -1077,7 +1092,7 @@ def main_running_experiments(path_to_datasets, parameters):
 if __name__ == "__main__":
     unittest_prepare_network_sparsity()
     path_to_datasets = "./Data"
-    dataset = "SplitMNIST"
+    dataset = "PermutedMNIST"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet',
     # 'CIFAR100_FeCAM_setup'
     part = 1
