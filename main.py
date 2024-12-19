@@ -621,12 +621,13 @@ def train_single_task(
                 verbose=True,
             )
     for iteration in range(parameters["number_of_iterations"]):
-        # Attack type
-        # Possible types: FGSM, BIM, PGD, AutoAttack
-        attack = 'FGSM'
-
         # hypernetwork.train()
         # target_network.train()
+        #
+        # # Attack type
+        # # Possible types: FGSM, BIM, PGD, AutoAttack
+        # attack = 'FGSM'
+        #
         current_batch = current_dataset_instance.next_train_batch(
             parameters["batch_size"]
         )
@@ -637,13 +638,13 @@ def train_single_task(
             current_batch[1], parameters["device"], mode="train"
         )
         gt_output = tensor_output.max(dim=1)[1]
-
-        if attack == 'FGSM':
-            tensor_input = attacks.fgsm_attack(tensor_input, ksi=20/255)
-        elif attack == 'BIM':
-            tensor_input = attacks.bim_attack(tensor_input, gt_output, 40, ksi=40/255, alpha=2/255)
-        elif attack == 'PGD':
-            tensor_input = attacks.pgd_attack(tensor_input, gt_output,40, ksi=40/255, alpha=2/255, random_start=True)
+        #
+        # if attack == 'FGSM':
+        #     tensor_input = attacks.fgsm_attack(tensor_input, ksi=20/255)
+        # elif attack == 'BIM':
+        #     tensor_input = attacks.bim_attack(tensor_input, gt_output, 40, ksi=40/255, alpha=2/255)
+        # elif attack == 'PGD':
+        #     tensor_input = attacks.pgd_attack(tensor_input, gt_output,40, ksi=40/255, alpha=2/255, random_start=True)
 
         optimizer.zero_grad()
         # Get weights of the hypernetwork and apply binary mask
@@ -703,6 +704,19 @@ def train_single_task(
         if parameters["target_network"] == "epsMLP":
             default_eps = target_network.epsilon
             target_network.epsilon = (iteration / 2000) * default_eps
+            attack = 'FGSM'
+            if attack == 'FGSM':
+                tensor_input.requires_grad = True
+                data_grad = tensor_input.grad.data
+                tensor_input = attacks.fgsm_attack(tensor_input, data_grad, ksi=20 / 255)
+            elif attack == 'BIM':
+                tensor_input = attacks.bim_attack(tensor_input,40, ksi=40 / 255, alpha=2 / 255)
+            elif attack == 'PGD':
+                tensor_input = attacks.pgd_attack(tensor_input,40, ksi=40 / 255, alpha=2 / 255,
+                                                  random_start=True)
+            elif attack == 'AutoAttack':
+                pass
+
             prediction, eps_prediction = target_network.forward(
                 tensor_input, weights=target_weights
             )
@@ -781,6 +795,29 @@ def train_single_task(
 
         loss.backward()
         optimizer.step()
+
+        # tensor_input.requires_grad = True
+        # data_grad = tensor_input.grad.data
+
+        # attack = 'FGSM'
+        # if attack == 'FGSM':
+        #     perturbed_input = attacks.fgsm_attack(tensor_input, data_grad, ksi=20 / 255)
+        #     prediction, eps_prediction = target_network.forward(
+        #         perturbed_input, weights=target_weights
+        #     )
+        #     final_pred = prediction.max(1, keepdim=True)[1]
+        #     # to jest tu czasowo
+        #     correct = 0
+        #     if final_pred.item() == gt_output.item():
+        #         correct += 1
+        #     # final_acc = correct / 10000
+        # elif attack == 'BIM':
+        #     perturbed_input = attacks.bim_attack(tensor_input, gt_output, 40, ksi=40 / 255, alpha=2 / 255)
+        # elif attack == 'PGD':
+        #     perturbed_input = attacks.pgd_attack(tensor_input, gt_output, 40, ksi=40 / 255, alpha=2 / 255,
+        #                                       random_start=True)
+
+
 
         if parameters["number_of_epochs"] is None:
             condition = (iteration % 100 == 0) or (

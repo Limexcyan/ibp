@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn.functional import cross_entropy
 
 
-def fgsm_attack(image, ksi=20/255):
+def fgsm_attack(image, data_grad, ksi=20/255):
     """
     Fast Gradient Sign Method
     Args:
@@ -14,12 +14,12 @@ def fgsm_attack(image, ksi=20/255):
         adv_image: image dataset after fgsm adversarial attack
 
     """
-    adv_image = image + ksi * image.sign()
+    adv_image = image + ksi * image.sign(data_grad)
     adv_image = torch.clamp(adv_image, min=0, max=1)
 
     return adv_image
 
-def bim_attack(image, label, num_iter, ksi=40/255, alpha=2/255):
+def bim_attack(image, num_iter, ksi=40/255, alpha=2/255):
     """
     Basic Iterative Method
     Args:
@@ -44,7 +44,7 @@ def bim_attack(image, label, num_iter, ksi=40/255, alpha=2/255):
 
     return adv_image
 
-def pgd_attack(image, label, num_iter, ksi=40/255, alpha=2/255, random_start=True):
+def pgd_attack(image, num_iter, ksi=40/255, alpha=2/255, random_start=True):
     """
 
     Args:
@@ -63,11 +63,11 @@ def pgd_attack(image, label, num_iter, ksi=40/255, alpha=2/255, random_start=Tru
 
     for it in range(num_iter):
         adv_image = adv_image + alpha * adv_image.grad.sign()
-        criterion = cross_entropy()
-        loss = criterion()
         perturbation = torch.clamp(adv_image - image, min=-ksi, max=ksi)
         adv_image = torch.clamp(image + perturbation, min=0, max=1)
 
-
     return adv_image
+
+def AutoAttack():
+    return 0
 
