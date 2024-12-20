@@ -14,7 +14,8 @@ def fgsm_attack(image, data_grad, ksi=20/255):
         adv_image: image dataset after fgsm adversarial attack
 
     """
-    adv_image = image + ksi * image.sign(data_grad)
+    sign_data_grad = data_grad.sign()
+    adv_image = image + ksi * sign_data_grad
     adv_image = torch.clamp(adv_image, min=0, max=1)
 
     return adv_image

@@ -157,57 +157,55 @@ def get_number_of_batch_normalization_layer(target_network):
     return num_of_batch_norm_layers
 
 
-def calculate_accuracy(
-    data, target_network, weights, parameters, evaluation_dataset
-):
+
+def calculate_accuracy(data, target_network, weights, parameters, evaluation_dataset):
     """
     Calculate accuracy for a given dataset using a selected network
-    and a selected set of weights
+    and a selected set of weights. Optionally applies FGSM or PGD attack.
 
     Arguments:
     ----------
-      *data*: an instance of the dataset (e.g.
-              hypnettorch.data.special.permuted_mnist.PermutedMNIST)
-              in the case of the PermutedMNIST dataset
-      *target_network*: an instance of the network that will be used
-                        during calculations (not necessarily with weights)
-      *weights*: weights for the *target_network* network
-                 (an instance of torch.nn.modules.container.ParameterList)
-      *parameters* a dictionary containing the following keys:
-        -device- string: 'cuda' or 'cpu', defines in which device calculations
-                 will be performed
-        -use_batch_norm_memory- Boolean: defines whether stored weights
-                                of the batch normalization layer should be used
-                                If True then *number_of_task* has to be given
-        -number_of_task- int/None: gives an information which task is currently
-                         solved. The number must be given when
-                         -use_batch_norm_memory- is True
-      *evaluation_dataset*: (string) 'validation' or 'test'; defines whether
-                            a validation or a test set will be evaluated
+      *data*: Dataset instance (e.g., hypnettorch.data.special.permuted_mnist.PermutedMNIST)
+              in the case of the PermutedMNIST dataset.
+      *target_network*: An instance of the network to be evaluated.
+      *weights*: Weights for the *target_network* network
+                 (an instance of torch.nn.modules.container.ParameterList).
+      *parameters*: Dictionary containing the following keys:
+        - 'device': (string) 'cuda' or 'cpu', determines the computation device.
+        - 'use_batch_norm_memory': (boolean) Whether to use stored weights for batch
+                                   normalization layers. If True, 'number_of_task'
+                                   must also be provided.
+        - 'number_of_task': (int or None) The task index currently being solved.
+                            Required if 'use_batch_norm_memory' is True.
+      *evaluation_dataset*: (string) Either 'validation' or 'test', specifies the dataset
+                            to evaluate.
+
     Returns:
     --------
-       torch.Tensor defining an accuracy for the selected setting
+      torch.Tensor: Accuracy (percentage) for the selected setting.
     """
     assert (
         parameters["use_batch_norm_memory"]
-        and parameters["number_of_task"] is not None
+        and parameters["number_of_task"]is not None
     ) or not parameters["use_batch_norm_memory"]
     assert evaluation_dataset in ["validation", "test"]
     target_network.eval()
     with torch.no_grad():
-        # Currently results will be calculated on the validation or test set
         if evaluation_dataset == "validation":
             input_data = data.get_val_inputs()
             output_data = data.get_val_outputs()
         elif evaluation_dataset == "test":
             input_data = data.get_test_inputs()
             output_data = data.get_test_outputs()
+
         test_input = data.input_to_torch_tensor(
             input_data, parameters["device"], mode="inference"
         )
         test_output = data.output_to_torch_tensor(
             output_data, parameters["device"], mode="inference"
         )
+        test_input.requires_grad = True
+
         gt_classes = test_output.max(dim=1)[1]
 
         if parameters["use_batch_norm_memory"]:
@@ -216,20 +214,94 @@ def calculate_accuracy(
                 weights=weights,
                 condition=parameters["number_of_task"],
             )
-            if len(logits)==2:
-                logits, _ = logits
         else:
             logits = target_network.forward(test_input, weights=weights)
-            #print(len(logits))
-            if len(logits)==2:
-                logits, _ = logits
+
+        if len(logits) == 2:
+            logits, _ = logits
+
         predictions = logits.max(dim=1)[1]
 
+        if evaluation_dataset == "test":
+            # FGSM, PGD, None
+            attack_method = None
+            if attack_method == None:
+                accuracy = (
+                                   torch.sum(gt_classes == predictions).float() / gt_classes.numel()
+                           ) * 100.0
+                return accuracy
+            elif attack_method == "FGSM":
+                # FGSM Attack
+                ksi = 45 / 255 # attack strenght
+                # loss = criterion(logits, gt_classes)
+                loss = nn.functional.nll_loss(logits, gt_classes)
+                target_network.zero_grad()
+                if test_input.grad is not None:
+                    test_input.grad.zero_()
+                loss.backward()
+                perturbation = ksi * test_input.grad.data.sign()
+                perturbed_test_input = test_input + perturbation
+                perturbed_test_input = torch.clamp(perturbed_test_input, 0, 1)
+                perturbed_output, _ = target_network.forward(perturbed_test_input, weights=weights)
+
+                perturbed_pred = perturbed_output.max(dim=1)[1]
+                perturbed_acc = (torch.sum(gt_classes == perturbed_pred) / gt_classes.numel()) * 100
+                return perturbed_acc
+
+        # Calculate accuracy
         accuracy = (
-            torch.sum(gt_classes == predictions, dtype=torch.float32)
-            / gt_classes.numel()
+            torch.sum(gt_classes == predictions).float() / gt_classes.numel()
         ) * 100.0
     return accuracy
+    #
+    # attack_method = "FGSM"
+    # if evaluation_dataset == "test":
+    #
+    #
+    #     with torch.no_grad():
+    #         if attack_method == "FGSM":
+    #             # FGSM Attack
+    #             ksi = 45 / 255
+    #             loss = criterion(logits, test_output.max(dim=1)[1])
+    #             if test_input.grad is not None:
+    #                 test_input.grad.zero_()
+    #             loss.backward()
+    #             with torch.no_grad():
+    #                 perturbation = ksi * test_input.grad.sign()
+    #                 test_input = test_input + perturbation
+    #                 test_input = torch.clamp(test_input, 0, 1)  # Ensure values are valid
+    #
+    #             test_input.requires_grad = False
+    #
+    #         elif attack_method == "PGD":
+    #             # PGD Attack
+    #             alpha = 2 / 255
+    #             ksi = 45 / 255
+    #             num_steps = 7
+    #             for _ in range(num_steps):
+    #                 test_input.requires_grad = True
+    #                 logits , _ = target_network.forward(test_input, weights=weights)
+    #
+    #                 target_network.zero_grad()
+    #                 loss = criterion(logits, test_output.max(dim=1)[1])
+    #                 if test_input.grad is not None:
+    #                     test_input.grad.zero_()
+    #                 loss.backward()
+    #
+    #                 perturbation = alpha * test_input.grad.sign()
+    #                 perturbed_input = test_input + perturbation
+    #                 eta = torch.clamp(perturbed_input - test_input, min=-ksi, max=ksi)
+    #                 perturbed_input = torch.clamp(perturbed_input + eta, min=0, max=1).detach_()
+    #
+    #             test_input = perturbed_input.clone()
+    #
+    #
+    #     test_input.requires_grad = False
+    #
+    #
+
+
+
 
 
 def prepare_network_sparsity(weights, threshold, verbose=False):
@@ -623,11 +695,7 @@ def train_single_task(
     for iteration in range(parameters["number_of_iterations"]):
         # hypernetwork.train()
         # target_network.train()
-        #
-        # # Attack type
-        # # Possible types: FGSM, BIM, PGD, AutoAttack
-        # attack = 'FGSM'
-        #
+
         current_batch = current_dataset_instance.next_train_batch(
             parameters["batch_size"]
         )
@@ -638,13 +706,6 @@ def train_single_task(
             current_batch[1], parameters["device"], mode="train"
         )
         gt_output = tensor_output.max(dim=1)[1]
-        #
-        # if attack == 'FGSM':
-        #     tensor_input = attacks.fgsm_attack(tensor_input, ksi=20/255)
-        # elif attack == 'BIM':
-        #     tensor_input = attacks.bim_attack(tensor_input, gt_output, 40, ksi=40/255, alpha=2/255)
-        # elif attack == 'PGD':
-        #     tensor_input = attacks.pgd_attack(tensor_input, gt_output,40, ksi=40/255, alpha=2/255, random_start=True)
 
         optimizer.zero_grad()
         # Get weights of the hypernetwork and apply binary mask
@@ -697,6 +758,7 @@ def train_single_task(
                         ],
                         p=parameters["norm"],
                     )
+
         target_weights = apply_mask_to_weights_of_network(target_network, masks)
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
@@ -704,22 +766,11 @@ def train_single_task(
         if parameters["target_network"] == "epsMLP":
             default_eps = target_network.epsilon
             target_network.epsilon = (iteration / 2000) * default_eps
-            attack = 'FGSM'
-            if attack == 'FGSM':
-                tensor_input.requires_grad = True
-                data_grad = tensor_input.grad.data
-                tensor_input = attacks.fgsm_attack(tensor_input, data_grad, ksi=20 / 255)
-            elif attack == 'BIM':
-                tensor_input = attacks.bim_attack(tensor_input,40, ksi=40 / 255, alpha=2 / 255)
-            elif attack == 'PGD':
-                tensor_input = attacks.pgd_attack(tensor_input,40, ksi=40 / 255, alpha=2 / 255,
-                                                  random_start=True)
-            elif attack == 'AutoAttack':
-                pass
 
             prediction, eps_prediction = target_network.forward(
                 tensor_input, weights=target_weights
             )
+
             z_lower = prediction - eps_prediction.T
             z_upper = prediction + eps_prediction.T
             z = torch.where((nn.functional.one_hot(gt_output, prediction.size(-1))).bool(), z_lower, z_upper)
@@ -730,38 +781,6 @@ def train_single_task(
 
             loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
             target_network.epsilon = default_eps
-
-            # N = 10000
-            # NN = 2 * N
-            # kappa = 1
-            # default_eps = target_network.epsilon
-            # for i in range(N):
-            #     if i < NN:
-            #         target_network.epsilon = (i / NN) * default_eps
-            #     current_weights = [w.clone().detach().requires_grad_(True) for w in target_weights]
-            #     prediction, eps_prediction = target_network.forward(tensor_input, weights=current_weights)
-            #     z_lower = prediction - eps_prediction.T
-            #     z_upper = prediction + eps_prediction.T
-            #     z = torch.where((nn.functional.one_hot(gt_output, prediction.size(-1))).bool(), z_lower, z_upper)
-            #
-            #     loss_spec = criterion(z, gt_output)
-            #     loss_fit = criterion(prediction, gt_output)
-            #     kappa = 1 - 0.00005 * i if i <= NN else 1.0
-            #
-            #     loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
-            #     err = (prediction.argmax(dim=1) != gt_output).float().sum()
-            #     worst_case_err = (z.argmax(dim=1) != gt_output).float().sum()
-            #     with torch.no_grad():
-            #         if (i % 1000) == 0:
-            #             print(f'epsilon: {target_network.epsilon} '
-            #                   f'it: {i} loss: {loss_current_task.item()}'
-            #                   f' error: {err} '
-            #                   f'worst: {worst_case_err}')
-            #     optimizer.zero_grad()
-            #     loss_current_task.backward()
-            #     optimizer.step()
-            # target_weights = current_weights
-            # target_network.epsilon = default_eps
         else:
             prediction = target_network.forward(
                 tensor_input, weights=target_weights
@@ -795,28 +814,6 @@ def train_single_task(
 
         loss.backward()
         optimizer.step()
-
-        # tensor_input.requires_grad = True
-        # data_grad = tensor_input.grad.data
-
-        # attack = 'FGSM'
-        # if attack == 'FGSM':
-        #     perturbed_input = attacks.fgsm_attack(tensor_input, data_grad, ksi=20 / 255)
-        #     prediction, eps_prediction = target_network.forward(
-        #         perturbed_input, weights=target_weights
-        #     )
-        #     final_pred = prediction.max(1, keepdim=True)[1]
-        #     # to jest tu czasowo
-        #     correct = 0
-        #     if final_pred.item() == gt_output.item():
-        #         correct += 1
-        #     # final_acc = correct / 10000
-        # elif attack == 'BIM':
-        #     perturbed_input = attacks.bim_attack(tensor_input, gt_output, 40, ksi=40 / 255, alpha=2 / 255)
-        # elif attack == 'PGD':
-        #     perturbed_input = attacks.pgd_attack(tensor_input, gt_output, 40, ksi=40 / 255, alpha=2 / 255,
-        #                                       random_start=True)
-
 
 
         if parameters["number_of_epochs"] is None:
@@ -876,7 +873,6 @@ def train_single_task(
     else:
         return hypernetwork, target_network
 
-
 def build_multiple_task_experiment(
     dataset_list_of_tasks, parameters, use_chunks=False
 ):
@@ -924,7 +920,7 @@ def build_multiple_task_experiment(
             hidden_layers=parameters["target_hidden_layers"],
             use_bias=parameters["use_bias"],
             no_weights=False,
-            epsilon=0.05,
+            epsilon=0.01,
         ).to(parameters["device"])
     elif parameters["target_network"] == "ResNet":
         target_network = ResNet(
