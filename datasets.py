@@ -626,10 +626,10 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
-        hyperparams["number_of_iterations"] = 20
+        hyperparams["number_of_iterations"] = 200
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 1000
-        hyperparams["no_of_validation_samples_per_class"] = 500
+        hyperparams["no_of_validation_samples_per_class"] = 100
         hyperparams["target_hidden_layers"] = [400, 400]
         hyperparams["shape"] = 28**2
         hyperparams["number_of_tasks"] = 5

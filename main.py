@@ -190,7 +190,8 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
     ) or not parameters["use_batch_norm_memory"]
     assert evaluation_dataset in ["validation", "test"]
     target_network.eval()
-    with torch.no_grad():
+    # with torch.no_grad():
+    if 1 == 1:
         if evaluation_dataset == "validation":
             input_data = data.get_val_inputs()
             output_data = data.get_val_outputs()
@@ -205,7 +206,8 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
             output_data, parameters["device"], mode="inference"
         )
         test_input.requires_grad = True
-
+        # print(f'test_input shape {test_input.shape}')
+        # print(f'test_output shape {test_output}')
         gt_classes = test_output.max(dim=1)[1]
 
         if parameters["use_batch_norm_memory"]:
@@ -224,28 +226,66 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
 
         if evaluation_dataset == "test":
             # FGSM, PGD, None
-            attack_method = None
+            attack_method = "FSGM"
             if attack_method == None:
                 accuracy = (
                                    torch.sum(gt_classes == predictions).float() / gt_classes.numel()
                            ) * 100.0
                 return accuracy
             elif attack_method == "FGSM":
-                # FGSM Attack
-                ksi = 45 / 255 # attack strenght
-                # loss = criterion(logits, gt_classes)
-                loss = nn.functional.nll_loss(logits, gt_classes)
+                ksi = 25 / 255 # attack strength
+                criterion = nn.CrossEntropyLoss()
+                loss = criterion(logits, gt_classes)
+                # loss = nn.functional.nll_loss(logits, gt_classes)
                 target_network.zero_grad()
-                if test_input.grad is not None:
-                    test_input.grad.zero_()
                 loss.backward()
+
                 perturbation = ksi * test_input.grad.data.sign()
                 perturbed_test_input = test_input + perturbation
                 perturbed_test_input = torch.clamp(perturbed_test_input, 0, 1)
-                perturbed_output, _ = target_network.forward(perturbed_test_input, weights=weights)
 
+                perturbed_output, _ = target_network.forward(perturbed_test_input, weights=weights)
+                # print(f'perturbed_output {perturbed_output}')
                 perturbed_pred = perturbed_output.max(dim=1)[1]
-                perturbed_acc = (torch.sum(gt_classes == perturbed_pred) / gt_classes.numel()) * 100
+                # print(f'gt_classes {gt_classes}')
+                # print(f'perturbed_pred {perturbed_pred}')
+                perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100
+
+                return perturbed_acc
+            elif attack_method == 'PGD':
+                ksi = 40 / 255
+                alpha = 2 / 255
+                random_start = False
+                num_iteration = 5
+                criterion = nn.CrossEntropyLoss()
+
+                perturbed_input = test_input.clone().detach()
+                perturbed_input.requires_grad = True
+
+                if random_start:
+                    perturbed_input += torch.empty_like(perturbed_input).uniform_(-ksi, ksi)
+                    perturbed_input = torch.clamp(perturbed_input, 0, 1)
+
+                for it in range(num_iteration):
+                    # print(f"it {it}/{num_iteration}")
+                    perturbed_input.requires_grad_()
+                    outputs, _ = target_network.forward(perturbed_input, weights=weights)
+
+                    loss = criterion(outputs, gt_classes)
+                    target_network.zero_grad()
+                    loss.backward(retain_graph=True)
+
+                    perturbation = alpha * perturbed_input.grad.sign()
+                    perturbed_input = perturbed_input + perturbation
+
+                    eta = torch.clamp(perturbed_input - test_input, min=-ksi, max=ksi)
+                    perturbed_input = torch.clamp(test_input + eta, 0, 1).detach()
+                    perturbed_input.requires_grad_()
+
+                perturbed_output, _ = target_network.forward(perturbed_input, weights=weights)
+                perturbed_pred = perturbed_output.max(dim=1)[1]
+                perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100.0
+
                 return perturbed_acc
 
         # Calculate accuracy
@@ -253,56 +293,6 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
             torch.sum(gt_classes == predictions).float() / gt_classes.numel()
         ) * 100.0
     return accuracy
-    #
-    # attack_method = "FGSM"
-    # if evaluation_dataset == "test":
-    #
-    #
-    #     with torch.no_grad():
-    #         if attack_method == "FGSM":
-    #             # FGSM Attack
-    #             ksi = 45 / 255
-    #             loss = criterion(logits, test_output.max(dim=1)[1])
-    #             if test_input.grad is not None:
-    #                 test_input.grad.zero_()
-    #             loss.backward()
-    #             with torch.no_grad():
-    #                 perturbation = ksi * test_input.grad.sign()
-    #                 test_input = test_input + perturbation
-    #                 test_input = torch.clamp(test_input, 0, 1)  # Ensure values are valid
-    #
-    #             test_input.requires_grad = False
-    #
-    #         elif attack_method == "PGD":
-    #             # PGD Attack
-    #             alpha = 2 / 255
-    #             ksi = 45 / 255
-    #             num_steps = 7
-    #             for _ in range(num_steps):
-    #                 test_input.requires_grad = True
-    #                 logits , _ = target_network.forward(test_input, weights=weights)
-    #
-    #                 target_network.zero_grad()
-    #                 loss = criterion(logits, test_output.max(dim=1)[1])
-    #                 if test_input.grad is not None:
-    #                     test_input.grad.zero_()
-    #                 loss.backward()
-    #
-    #                 perturbation = alpha * test_input.grad.sign()
-    #                 perturbed_input = test_input + perturbation
-    #                 eta = torch.clamp(perturbed_input - test_input, min=-ksi, max=ksi)
-    #                 perturbed_input = torch.clamp(perturbed_input + eta, min=0, max=1).detach_()
-    #
-    #             test_input = perturbed_input.clone()
-    #
-    #
-    #     test_input.requires_grad = False
-    #
-    #
-
-
-
-
 
 def prepare_network_sparsity(weights, threshold, verbose=False):
     """
@@ -765,7 +755,10 @@ def train_single_task(
         # give 'current_no_of_task' as a value for the 'condition' argument.
         if parameters["target_network"] == "epsMLP":
             default_eps = target_network.epsilon
-            target_network.epsilon = (iteration / 2000) * default_eps
+            # calculate_number_of_iterations(number_of_samples, match_size, number_of_epochs)[1]
+            total_iterations = parameters["number_of_iterations"]
+            inv_total_iterations = 1 / total_iterations
+            target_network.epsilon = iteration * inv_total_iterations * default_eps
 
             prediction, eps_prediction = target_network.forward(
                 tensor_input, weights=target_weights
@@ -777,7 +770,7 @@ def train_single_task(
 
             loss_spec = criterion(z, gt_output)
             loss_fit = criterion(prediction, gt_output)
-            kappa = 1 - (iteration * 0.0005)
+            kappa = 1 - (iteration * inv_total_iterations)
 
             loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
             target_network.epsilon = default_eps
