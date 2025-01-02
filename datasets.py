@@ -356,11 +356,11 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
 
             # Both in the grid search and individual runs
             hyperparams["lr_scheduler"] = False
-            hyperparams["number_of_iterations"] = 100
-            hyperparams["number_of_epochs"] = None
+            hyperparams["number_of_iterations"] = 10000
+            hyperparams["number_of_epochs"] = 10
             hyperparams["no_of_validation_samples"] = 5000
             hyperparams["no_of_validation_samples_per_class"] = 2000
-            hyperparams["target_hidden_layers"] = [100,100]
+            hyperparams["target_hidden_layers"] = [256,256, 10]
             hyperparams["target_network"] = "epsMLP"
             hyperparams["resnet_number_of_layer_groups"] = None
             hyperparams["resnet_widening_factor"] = None
