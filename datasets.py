@@ -328,10 +328,10 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
                     "learning_rates": [0.001],
                     "batch_sizes": [32],
                     "norm_regularizer_masking_opts": [True, False],
-                    "betas": [0.001, 0.0005, 0.005],
+                    "betas": [0.001, 0.0005, 0.005, 0.0001, 0.01, 0.05],
                     "hypernetworks_hidden_layers": [[100, 100]],
                     "sparsity_parameters": [0],
-                    "lambdas": [0.001, 0.0005],
+                    "lambdas": [0.001, 0.0005, 0.0001, 0.005, 0.01, 0.05],
                     "best_model_selection_method": "val_loss",
                     "saving_folder": "./Results/grid_search/permuted_mnist/",
                     # not for optimization, just for multiple cases
@@ -356,11 +356,11 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
 
             # Both in the grid search and individual runs
             hyperparams["lr_scheduler"] = False
-            hyperparams["number_of_iterations"] = 10000
-            hyperparams["number_of_epochs"] = 10
+            hyperparams["number_of_iterations"] = 100
+            hyperparams["number_of_epochs"] = None
             hyperparams["no_of_validation_samples"] = 5000
-            hyperparams["no_of_validation_samples_per_class"] = 500
-            hyperparams["target_hidden_layers"] = [256, 256, 10]
+            hyperparams["no_of_validation_samples_per_class"] = 2000
+            hyperparams["target_hidden_layers"] = [100,100]
             hyperparams["target_network"] = "epsMLP"
             hyperparams["resnet_number_of_layer_groups"] = None
             hyperparams["resnet_widening_factor"] = None

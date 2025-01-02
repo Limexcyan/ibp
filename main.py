@@ -8,6 +8,7 @@ import seaborn as sns
 import torch.optim as optim
 from hypnettorch.mnets import MLP
 from hypnettorch.mnets.resnet import ResNet
+from scipy.special.cython_special import eval_sh_legendre
 
 from epsMLP import epsMLP
 import attacks
@@ -206,8 +207,6 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
             output_data, parameters["device"], mode="inference"
         )
         test_input.requires_grad = True
-        # print(f'test_input shape {test_input.shape}')
-        # print(f'test_output shape {test_output}')
         gt_classes = test_output.max(dim=1)[1]
 
         if parameters["use_batch_norm_memory"]:
@@ -225,30 +224,31 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
         predictions = logits.max(dim=1)[1]
 
         if evaluation_dataset == "test":
-            # FGSM, PGD, None
-            attack_method = "FSGM"
+            # FGSM, PGD, AutoAttack, None
+
+            attack_method = "FGSM"
             if attack_method == None:
-                accuracy = (
-                                   torch.sum(gt_classes == predictions).float() / gt_classes.numel()
-                           ) * 100.0
-                return accuracy
+                pass
+                # accuracy = (
+                #                    torch.sum(gt_classes == predictions).float() / gt_classes.numel()
+                #            ) * 100.0
+                # return accuracy
             elif attack_method == "FGSM":
                 ksi = 25 / 255 # attack strength
                 criterion = nn.CrossEntropyLoss()
                 loss = criterion(logits, gt_classes)
-                # loss = nn.functional.nll_loss(logits, gt_classes)
                 target_network.zero_grad()
                 loss.backward()
 
-                perturbation = ksi * test_input.grad.data.sign()
+                perturbation = torch.clamp(ksi * test_input.grad.data.sign(), -0.01,0.01)
+                # data_grad = test_input.grad.data
+                # signed_grad = data_grad.sign()
+                # perturbation = ksi * signed_grad
                 perturbed_test_input = test_input + perturbation
                 perturbed_test_input = torch.clamp(perturbed_test_input, 0, 1)
 
                 perturbed_output, _ = target_network.forward(perturbed_test_input, weights=weights)
-                # print(f'perturbed_output {perturbed_output}')
                 perturbed_pred = perturbed_output.max(dim=1)[1]
-                # print(f'gt_classes {gt_classes}')
-                # print(f'perturbed_pred {perturbed_pred}')
                 perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100
 
                 return perturbed_acc
@@ -256,7 +256,7 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
                 ksi = 40 / 255
                 alpha = 2 / 255
                 random_start = False
-                num_iteration = 5
+                num_iteration = 10
                 criterion = nn.CrossEntropyLoss()
 
                 perturbed_input = test_input.clone().detach()
@@ -267,7 +267,6 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
                     perturbed_input = torch.clamp(perturbed_input, 0, 1)
 
                 for it in range(num_iteration):
-                    # print(f"it {it}/{num_iteration}")
                     perturbed_input.requires_grad_()
                     outputs, _ = target_network.forward(perturbed_input, weights=weights)
 
@@ -577,6 +576,136 @@ def plot_heatmap(load_path):
     plt.savefig(load_path.replace(".csv", ".pdf"), dpi=300)
     plt.close()
 
+def calculate_robustness_acc(dataframe):
+    """
+    Calculate the ACC metric based on robustness accuracies i.e.
+    accuracies after learning last task
+
+    Argument:
+    ---------
+      *load_path* (string) contains path to the .csv file with
+                  results in a dataframe shape, i.e. with columns:
+                  'after_learning_of_task', 'tested_task' (both
+                  integers) and 'accuracy' (float).
+
+    Returns:
+    --------
+      normed_robustness_acc (float): The computed ACC metric.
+    """
+    #dataframe = pd.read_csv(load_path, delimiter=";", index_col=0)
+    #dataframe = dataframe.astype(
+    #    {"after_learning_of_task": "int32", "tested_task": "int32"}
+    #)
+    if len(dataframe) != 0:
+        last_task = dataframe["after_learning_of_task"].max()
+        accuracies_after_last_task = dataframe[dataframe["after_learning_of_task"] == last_task]
+        unnormed_robustness_acc = accuracies_after_last_task["accuracy"].sum()
+        normed_robustness_acc = unnormed_robustness_acc / (last_task + 1)
+    else:
+        normed_robustness_acc = 0
+
+    return normed_robustness_acc
+
+
+def calculate_BWT(dataframe):
+    """
+    Calculate the BWT metric based on accuracy data.
+
+    Argument:
+    ---------
+      *load_path* (string) contains path to the .csv file with
+                  results in a dataframe shape, i.e. with columns:
+                  'after_learning_of_task', 'tested_task' (both
+                  integers) and 'accuracy' (float).
+
+    Returns:
+    --------
+      BWT (float): The computed BWT metric.
+    """
+    #dataframe = pd.read_csv(load_path, delimiter=";", index_col=0)
+    #dataframe = dataframe.astype(
+    #    {"after_learning_of_task": "int32", "tested_task": "int32"}
+    #)
+
+    if len(dataframe) > 1:
+        last_task = dataframe["after_learning_of_task"].max()
+        accuracies_after_last_task = dataframe[dataframe["after_learning_of_task"] == last_task]
+        accuracies_of_newly_learned_tasks = dataframe[
+            dataframe["after_learning_of_task"] == dataframe["tested_task"]
+            ]
+        robustness_sum = accuracies_after_last_task[
+            accuracies_after_last_task["tested_task"] != last_task
+            ]["accuracy"].sum()
+        freshness_sum = accuracies_of_newly_learned_tasks[
+            accuracies_of_newly_learned_tasks["tested_task"] != last_task
+            ]["accuracy"].sum()
+        unnormed_BWT = robustness_sum - freshness_sum
+        BWT = unnormed_BWT / last_task
+    else:
+        BWT = 0
+
+    return BWT
+
+
+def robustness_graph(load_path):
+    """
+    Plot graph presenting ACC metric results for different learning tasks
+
+    Argument:
+    ---------
+      *load_path* (string) contains path to the .csv file with
+                  results in a dataframe shape, i.e. with columns:
+                  'after_learning_of_task', 'tested_task' (both
+                  integers) and 'accuracy' (float)
+    """
+    dataframe = pd.read_csv(load_path, delimiter=";", index_col=0)
+    dataframe = dataframe.astype(
+        {"after_learning_of_task": "int32", "tested_task": "int32"}
+    )
+    max_task = dataframe["after_learning_of_task"].max()
+    partial_robustness = []
+    for task in range(max_task+1):
+        partial_dataframe = dataframe[dataframe["after_learning_of_task"] <= task]
+        partial_robustness.append(calculate_robustness_acc(partial_dataframe))
+
+    sns.lineplot(x=range(max_task+1), y=partial_robustness)
+    plt.xlabel("Task")
+    plt.ylabel("Robustness")
+    plt.title("Robustness during experiment")
+    plt.tight_layout()
+    plt.savefig(load_path.replace(".csv", "_ACC.pdf"), dpi=300)
+    plt.close()
+
+
+
+def bwt_graph(load_path):
+    """
+    Plot graph presenting BWT metric results for different learning tasks
+
+    Argument:
+    ---------
+      *load_path* (string) contains path to the .csv file with
+                  results in a dataframe shape, i.e. with columns:
+                  'after_learning_of_task', 'tested_task' (both
+                  integers) and 'accuracy' (float)
+    """
+    dataframe = pd.read_csv(load_path, delimiter=";", index_col=0)
+    dataframe = dataframe.astype(
+        {"after_learning_of_task": "int32", "tested_task": "int32"}
+    )
+
+    max_task = dataframe["after_learning_of_task"].max()
+    partial_bwt = []
+    for task in range(max_task):
+        partial_dataframe = dataframe[dataframe["after_learning_of_task"] <= task]
+        partial_bwt.append(calculate_BWT(partial_dataframe))
+
+    sns.lineplot(x=range(max_task), y=partial_bwt)
+    plt.tight_layout()
+    plt.savefig(load_path.replace(".csv", "_BWT.pdf"), dpi=300)
+    plt.close()
+
+
 
 def train_single_task(
     hypernetwork,
@@ -770,7 +899,7 @@ def train_single_task(
 
             loss_spec = criterion(z, gt_output)
             loss_fit = criterion(prediction, gt_output)
-            kappa = 1 - (iteration * inv_total_iterations)
+            kappa = 1 - (iteration * inv_total_iterations * 0.5)
 
             loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
             target_network.epsilon = default_eps
@@ -1013,11 +1142,16 @@ def build_multiple_task_experiment(
         dataframe = dataframe.astype(
             {"after_learning_of_task": "int", "tested_task": "int"}
         )
+
+        print(f"Robustness accuracy: {calculate_robustness_acc(dataframe)}")
+        print(f"BWT accuracy: {calculate_BWT(dataframe)}")
+
         dataframe.to_csv(
             f'{parameters["saving_folder"]}/'
             f'results_{parameters["name_suffix"]}.csv',
             sep=";",
         )
+
     return hypernetwork, target_network, dataframe
 
 
@@ -1112,6 +1246,9 @@ def main_running_experiments(path_to_datasets, parameters):
         f'results_{parameters["name_suffix"]}.csv'
     )
     plot_heatmap(load_path)
+    robustness_graph(load_path)
+    bwt_graph(load_path)
+
     return hypernetwork, target_network, dataframe
 
 
@@ -1122,7 +1259,7 @@ if __name__ == "__main__":
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet',
     # 'CIFAR100_FeCAM_setup'
     part = 1
-    create_grid_search = False
+    create_grid_search = True
     if create_grid_search:
         summary_results_filename = "grid_search_results"
     else:
