@@ -34,6 +34,8 @@ from datasets import (
     prepare_tinyimagenet_tasks,
 )
 
+from autoattack import AutoAttack
+
 def set_seed(value):
     """
     Set deterministic results according to the given value
@@ -226,7 +228,7 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
         if evaluation_dataset == "test":
             # FGSM, PGD, AutoAttack, None
 
-            attack_method = "FGSM"
+            attack_method = "AutoAttack"
             if attack_method == None:
                 pass
                 # accuracy = (
@@ -241,12 +243,15 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
                 loss.backward()
 
                 perturbation = torch.clamp(ksi * test_input.grad.data.sign(), -0.01,0.01)
+
                 # data_grad = test_input.grad.data
                 # signed_grad = data_grad.sign()
                 # perturbation = ksi * signed_grad
                 perturbed_test_input = test_input + perturbation
                 perturbed_test_input = torch.clamp(perturbed_test_input, 0, 1)
 
+                assert torch.max(torch.abs(perturbed_test_input - test_input)) <= 0.01
+                
                 perturbed_output, _ = target_network.forward(perturbed_test_input, weights=weights)
                 perturbed_pred = perturbed_output.max(dim=1)[1]
                 perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100
@@ -254,9 +259,9 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
                 return perturbed_acc
             elif attack_method == 'PGD':
                 ksi = 40 / 255
-                alpha = 2 / 255
+                alpha = 1
                 random_start = False
-                num_iteration = 10
+                num_iteration = min(ksi + 4, 1.25 * ksi)
                 criterion = nn.CrossEntropyLoss()
 
                 perturbed_input = test_input.clone().detach()
@@ -276,9 +281,8 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
 
                     perturbation = alpha * perturbed_input.grad.sign()
                     perturbed_input = perturbed_input + perturbation
+                    perturbed_input = torch.clamp(perturbed_input, -ksi, ksi).detach()
 
-                    eta = torch.clamp(perturbed_input - test_input, min=-ksi, max=ksi)
-                    perturbed_input = torch.clamp(test_input + eta, 0, 1).detach()
                     perturbed_input.requires_grad_()
 
                 perturbed_output, _ = target_network.forward(perturbed_input, weights=weights)
@@ -286,7 +290,23 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
                 perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100.0
 
                 return perturbed_acc
+            elif attack_method == 'AutoAttack':
+                ksi = 20/255
+                adversary = AutoAttack(
+                    lambda x: target_network.forward(x, weights=weights)[0],
+                    norm='L2',
+                    eps=ksi,
+                    version='standard',
+                    device=parameters["device"]
+                )
+                perturbed_input = test_input.clone().detach()
+                x_adv = adversary.run_standard_evaluation(perturbed_input, gt_classes, bs=batch_size)
 
+                perturbed_output, _ = target_network.forward(x_adv, weights=weights)
+                perturbed_pred = perturbed_output.max(dim=1)[1]
+                perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100.0
+
+                return perturbed_acc
         # Calculate accuracy
         accuracy = (
             torch.sum(gt_classes == predictions).float() / gt_classes.numel()
@@ -1114,6 +1134,9 @@ def build_multiple_task_experiment(
             dataset_list_of_tasks,
             no_of_task,
         )
+
+        target_network = torch.load("Results/grid_search/permuted_mnist/0/target_network_after_9_task.pt")
+        hypernetwork = torch.load("Results/grid_search/permuted_mnist/0/hypernetwork_after_9_task.pt")
 
         if no_of_task == (parameters["number_of_tasks"] - 1):
             # Save current state of networks

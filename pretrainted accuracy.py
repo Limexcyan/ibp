@@ -44,14 +44,21 @@ dataframe = pd.DataFrame(
 criterion = nn.CrossEntropyLoss()
 path_to_datasets = "./Data"
 
-parameters = pd.dataframe('parameters_mask_sparsity_0.csv')
+dataset = "PermutedMNIST"
 
-dataset_tasks_list = prepare_permuted_mnist_tasks(
-    path_to_datasets,
-    parameters["input_shape"],
-    parameters["number_of_tasks"],
-    parameters["padding"],
-    parameters["no_of_validation_samples"],
+target_network = torch.load("Results/grid_search/permuted_mnist/0/target_network_after_9_task.pt")
+hypernetwork = torch.load("Results/grid_search/permuted_mnist/0/hypernetwork_after_9_task.pt")
+target_network.eval()
+hypernetwork.eval()
+
+accuracy = calculate_accuracy(
+    data=data,
+    target_network=target_network,
+    weights=weights,
+    parameters=parameters,
+    evaluation_dataset="test"
 )
 
-dataset = "PermutedMNIST"
+print(f"Accuracy: {accuracy:.2f}%")
+
+

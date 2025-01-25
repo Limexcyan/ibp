@@ -359,7 +359,7 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
             hyperparams["number_of_iterations"] = 10000
             hyperparams["number_of_epochs"] = 10
             hyperparams["no_of_validation_samples"] = 5000
-            hyperparams["no_of_validation_samples_per_class"] = 2000
+            hyperparams["no_of_validation_samples_per_class"] = 500
             hyperparams["target_hidden_layers"] = [256,256, 10]
             hyperparams["target_network"] = "epsMLP"
             hyperparams["resnet_number_of_layer_groups"] = None
@@ -735,7 +735,7 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
     hyperparams["norm"] = 1  # L1 norm
     hyperparams["use_bias"] = True
     hyperparams["save_consecutive_masks"] = False
-    hyperparams["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+    hyperparams["device"] = "cpu"
     hyperparams["dataset"] = dataset
     os.makedirs(hyperparams["saving_folder"], exist_ok=True)
     return hyperparams
