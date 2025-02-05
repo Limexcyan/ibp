@@ -15,6 +15,11 @@ class epsMLP(nn.Module, MainNetInterface):
         out_fn=None,
         epsilon=0.01
     ):
+        # TODO Wydaje mi się, że skoro hipersieć generuje wagi do target sieci,
+        # to nie ma potrzeby tworzenia kolejnych parametrów uczących w
+        # konstruktorze tej klasy. Hipersieci wystarczy sama informacja o rozmiarach
+        # generowanych wag.
+
         # FIXME find a way using super to handle multiple inheritance.
         nn.Module.__init__(self)
         MainNetInterface.__init__(self)
@@ -85,6 +90,8 @@ class epsMLP(nn.Module, MainNetInterface):
 
         self._is_properly_setup()
 
+    # TODO W argumentach tej metody podawałbym epsilon, tak będzie ładniej.
+    # Inaczej musisz zmieniać pole tej klasy w pliku main.py co iterację.
     def forward(self, x, weights=None, distilled_params=None, condition=None):
         if weights is None:
             raise ValueError("Weights must be provided.")

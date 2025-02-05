@@ -34,7 +34,13 @@ from datasets import (
     prepare_tinyimagenet_tasks,
 )
 
+# TODO Nie ma takiego pliku
 from autoattack import AutoAttack
+
+# TODO Btw to myślę, że można by skorzystać z paczki torchattakcks: https://adversarial-attacks-pytorch.readthedocs.io/en/latest/index.html
+# Jest tam zaimplementowanych bardzo dużo różnych ataków i nie trzeba ich kodzić ręcznie. Wydaje mi się ta paczka o tyle spoko,
+# że nie trzeba troszczyć się o normalizację, bo o to już się zatroszczyli. Natomiast Twój kod zakłada dane znormalizowane do [0,1],
+# a potencjalnie możemy mieć dane dodatkowo zestandaryzowane, czyli odejmujemy średnią i dzielimy przez odchylenie standardowe.
 
 def set_seed(value):
     """
@@ -92,7 +98,7 @@ def get_shapes_of_network(model):
         shapes_of_model.append(list(layer.shape))
     return shapes_of_model
 
-
+# TODO Jeśli nie stosujemy masek, to ta funkcja nie będzie potrzebna i można ją usunąć
 def calculate_current_threshold(
     current_iteration, max_sparsity, no_of_last_iteration
 ):
@@ -137,7 +143,7 @@ def calculate_number_of_iterations(
     total_no_of_iterations = int(no_of_iterations_per_epoch * number_of_epochs)
     return no_of_iterations_per_epoch, total_no_of_iterations
 
-
+# TODO Jeśli nie stosujemy masek, to ta funkcja nie będzie potrzebna i można ją usunąć
 def get_number_of_batch_normalization_layer(target_network):
     """
     Get a number of batch normalization layer in a given target network.
@@ -193,6 +199,8 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
     ) or not parameters["use_batch_norm_memory"]
     assert evaluation_dataset in ["validation", "test"]
     target_network.eval()
+    # TODO Dlaczego to jest zakomentowane? Myślę, że z blokiem with torch.no_grad będzie szybciej,
+    # bo nie będziemy liczyć gradientu podczas walidacji / testu
     # with torch.no_grad():
     if 1 == 1:
         if evaluation_dataset == "validation":
@@ -227,7 +235,8 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
 
         if evaluation_dataset == "test":
             # FGSM, PGD, AutoAttack, None
-
+            # TODO Zrób proszę te ataki w jakimś oddzielnym pliku albo oddzielnej funkcji,
+            # bo teraz powstała duża funkcja, którą coraz trudniej będzie modyfikować
             attack_method = "AutoAttack"
             if attack_method == None:
                 pass
@@ -237,6 +246,10 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
                 # return accuracy
             elif attack_method == "FGSM":
                 ksi = 25 / 255 # attack strength
+                # TODO Dlaczego tutaj liczymy backward? Jak rozumiem naszym celem jest jedynie sprawdzenie,
+                # jak sieć sobie radzi z klasyfikacją próbek, które zostały zaatakowane. Nie trzeba liczyć gradientu
+                # i go propagować wstecz. Analogiczny komentarz dotyczy PGD. Poza tym nie możemy skorzystać z pliku attacks.py?
+                # Tam też te metody zostały zaimplementowane i można by je zaimportować.
                 criterion = nn.CrossEntropyLoss()
                 loss = criterion(logits, gt_classes)
                 target_network.zero_grad()
@@ -292,6 +305,7 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
                 return perturbed_acc
             elif attack_method == 'AutoAttack':
                 ksi = 20/255
+                # TODO Jakiś problem z importem
                 adversary = AutoAttack(
                     lambda x: target_network.forward(x, weights=weights)[0],
                     norm='L2',
@@ -313,6 +327,8 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
         ) * 100.0
     return accuracy
 
+# TODO Ta funkcja nie będzie nam potrzebna, jeśli nie aplikujemy masek
+# do wag target sieci.
 def prepare_network_sparsity(weights, threshold, verbose=False):
     """
     Function for selection of top N% of weights in consecutive
@@ -373,7 +389,8 @@ def prepare_network_sparsity(weights, threshold, verbose=False):
 
     return masks
 
-
+# TODO Ta funkcja nie będzie nam potrzebna, jeśli nie aplikujemy masek
+# do wag target sieci.
 def unittest_prepare_network_sparsity():
     """
     Unittest of 'prepare_network_sparsity' function
@@ -404,7 +421,8 @@ def unittest_prepare_network_sparsity():
         torch.allclose(test_output[i], gt_mask[i])
     print("Unittest passed!")
 
-
+# TODO Ta funkcja nie będzie nam potrzebna, jeśli nie aplikujemy masek
+# do wag target sieci.
 def apply_mask_to_weights_of_network(
     target_network, masks, num_of_batch_norm_layers=None
 ):
@@ -533,6 +551,8 @@ def evaluate_previous_tasks(
         currently_tested_task = list_of_permutations[task]
         # Generate weights of the target network
         hypernetwork_weights = hypernetwork.forward(cond_id=task)
+        # TODO Ta funkcja nie będzie nam potrzebna, jeśli nie aplikujemy masek
+        # do wag target sieci.
         masks = prepare_network_sparsity(
             hypernetwork_weights, sparsity_parameter
         )
@@ -616,6 +636,14 @@ def calculate_robustness_acc(dataframe):
     #dataframe = dataframe.astype(
     #    {"after_learning_of_task": "int32", "tested_task": "int32"}
     #)
+    # TODO Jeśli dobrze zrozumiałem, to nie jest to poprawnie zakodowana funkcja.
+    # Tutaj po prostu wyciągamy dokładność klasyfikacji wszystkich tasków po ostatnim tasku
+    # i uśredniamy, ale nam chodzi o to, żeby sprawdzić, czy cała kostka, w obrębie której został
+    # wykonany atak, została poprawnie sklasyfikowana. Żeby policzyć tę metrykę dla jednego tasku, to potrzebujemy
+    # (1) Zidentyfikować próki ze zbioru testowego/walidacyjnego, które zostały poprawnie sklasyfikowane przez model (to bardzo ważne!)
+    # (2) Zaaplikować atak do próbek z punktu (1) i zobaczyć, czy dolne prawdopodobieństwo wyboru prawdziwej klasy jest
+    # większe niż górne prawdopodobieństwo wyboru pozostałych klas. Wtedy mówimy, że takie próbki zostały zweryfikowane
+    # i są odporne na ataki.
     if len(dataframe) != 0:
         last_task = dataframe["after_learning_of_task"].max()
         accuracies_after_last_task = dataframe[dataframe["after_learning_of_task"] == last_task]
@@ -764,6 +792,11 @@ def train_single_task(
     """
     # Optimizer cannot be located outside of this function because after
     # deep copy of the network it needs to be reinitialized
+
+    # TODO Target network nie powinien mieć nic trenowalnego u nas,
+    # bo wszystkie jego wagi są generowane przez hipersieć. W związku
+    # z tym tutaj trzeba usunać *target_network.parameters()
+
     if parameters["optimizer"] == "adam":
         optimizer = torch.optim.Adam(
             [*hypernetwork.parameters(), *target_network.parameters()],
@@ -789,7 +822,7 @@ def train_single_task(
     # Compute targets for the regularization part of loss before starting
     # the training of a current task
     hypernetwork.train()
-    target_network.train()
+    target_network.train() # TODO Target network nie powinien być trenowalny.
     print(f"task: {current_no_of_task}")
     if current_no_of_task > 0:
         regularization_targets = hreg.get_current_targets(
@@ -851,6 +884,10 @@ def train_single_task(
         # to the target network
         hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
 
+        # TODO Przemek mówił, że hipersieć powinna generować wagi bez masek.
+        # W związku z tym trzeba usunąć wszystkie linijki kodu, które wykorzystują
+        # maski albo sparsity tych masek.
+
         current_sparsity_parameter = parameters["sparsity_parameter"]
         if current_no_of_task == 0 and parameters["adaptive_sparsity"]:
             current_sparsity_parameter = calculate_current_threshold(
@@ -858,6 +895,8 @@ def train_single_task(
                 parameters["sparsity_parameter"],
                 parameters["number_of_iterations"],
             )
+
+        # TODO Jeśli nie używamy masek, to ta zmienna masks nie będzie używana
         masks = prepare_network_sparsity(
             hnet_weights, current_sparsity_parameter
         )
@@ -870,6 +909,10 @@ def train_single_task(
             # normalization layers
             # This norm is applied BEFORE the multiplication by
             # mask from the hypernetwork
+
+            # TODO Jeżeli nie używamy masek, to no_of_batch_norm_layers nie będzie nam potrzebne.
+            # A w sumie to tylko utrudni zadanie, jak przejdziemy do ResNetów. Podobna uwaga dotyczy
+            # loss_norm_target_regularizer. Tego lossu nie powinno być, jeżeli bierzemy pod uwagę maski.
             no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
                 target_network
             )
@@ -898,6 +941,7 @@ def train_single_task(
                         p=parameters["norm"],
                     )
 
+        # TODO Nie powinno być tu masek
         target_weights = apply_mask_to_weights_of_network(target_network, masks)
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
@@ -928,6 +972,8 @@ def train_single_task(
                 tensor_input, weights=target_weights
             )
             loss_current_task = criterion(prediction, gt_output)
+            # TODO Jako że sama wartość lossu nic nam nie mówi, warto logować jeszcze
+            # accuracy i verified accuracy, czyli dokładność klasyfikacji całych kostek.
             print(f' loss: {loss_current_task.item()}')
         loss_regularization = 0.0
         if current_no_of_task > 0:
@@ -1055,6 +1101,13 @@ def build_multiple_task_experiment(
             use_bias=parameters["use_bias"],
             no_weights=False,
         ).to(parameters["device"])
+    
+    # TODO W epsMLP nie deklaruj proszę na sztywno wartość epsilona. Dorób
+    # wczytywanie z pliku (chyba że to jest robione gdzieś później)
+
+    # TODO no_weights we wszystkich konstruktorach klas poniżej powinno być
+    # ustawione na True, dlatego, że te sieci neuronowe nie powinny mieć żadnych
+    # trenowalnych parametrów.
     elif parameters["target_network"] == "epsMLP":
         target_network = epsMLP(
             n_in=parameters["input_shape"],
@@ -1089,6 +1142,8 @@ def build_multiple_task_experiment(
             no_weights=False,
         ).to(parameters["device"])
     # Create a hypernetwork based on the shape of the target network
+    # TODO Tak jak pisałem wcześniej, ta zmienna nie będzie nam potrzebna,
+    # gdy nie generujemy masek do target sieci.
     no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
         target_network
     )
@@ -1123,6 +1178,7 @@ def build_multiple_task_experiment(
         use_batch_norm_memory = True
     else:
         use_batch_norm_memory = False
+    # TODO Target sieć nie powinna być trenowalna, więc trzeba usunąć "target_network.train()"
     hypernetwork.train()
     target_network.train()
     for no_of_task in range(parameters["number_of_tasks"]):
@@ -1135,9 +1191,16 @@ def build_multiple_task_experiment(
             no_of_task,
         )
 
+        # TODO W tej funkcji wczytujemy wagi hipersieci i target sieci po nauce na 9. tasku, ale
+        # - Nie musimy mieć dokładnie 10 tasków (licząc od 0),
+        # - Wagi target sieci nie powinny być wczytywane / zapisywane, bo docelowo to hipersieć generuje wagi
+        # - Nie możemy wczytywać wag sieci nauczonej po 9. taskach w czasie treningu i-tego tasku, bo to
+        #   będzie oszustwo i performance będzie bardzo dobry, ale uzyskany nieprawidłową metodą.
         target_network = torch.load("Results/grid_search/permuted_mnist/0/target_network_after_9_task.pt")
         hypernetwork = torch.load("Results/grid_search/permuted_mnist/0/hypernetwork_after_9_task.pt")
 
+        # TODO Jak dasz no_of_task <= (parameters["number_of_tasks"] - 1), to będziesz zapisywać sobie
+        # sieć po każdym tasku. Ponownie, nie ma po co zapisywać wag target sieci.
         if no_of_task == (parameters["number_of_tasks"] - 1):
             # Save current state of networks
             write_pickle_file(
@@ -1276,6 +1339,10 @@ def main_running_experiments(path_to_datasets, parameters):
 
 
 if __name__ == "__main__":
+
+    # TODO Jeśli nie stosujemy masek, to nie ma po co tego tutaj robić.
+    # Poza tym testowanie powinno być raczej przeniesione do osobnego folderu
+    # i nie powinno się go mieszać ze skryptem uczącym.
     unittest_prepare_network_sparsity()
     path_to_datasets = "./Data"
     dataset = "PermutedMNIST"
