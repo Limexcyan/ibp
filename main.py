@@ -146,124 +146,117 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
     ) or not parameters["use_batch_norm_memory"]
     assert evaluation_dataset in ["validation", "test"]
     target_network.eval()
-    # with torch.no_grad():
-    if 1 == 1:
-        if evaluation_dataset == "validation":
-            input_data = data.get_val_inputs()
-            output_data = data.get_val_outputs()
-        elif evaluation_dataset == "test":
-            input_data = data.get_test_inputs()
-            output_data = data.get_test_outputs()
+    torch.no_grad()
+    if evaluation_dataset == "validation":
+        input_data = data.get_val_inputs()
+        output_data = data.get_val_outputs()
+    elif evaluation_dataset == "test":
+        input_data = data.get_test_inputs()
+        output_data = data.get_test_outputs()
 
-        test_input = data.input_to_torch_tensor(
-            input_data, parameters["device"], mode="inference"
+    test_input = data.input_to_torch_tensor(input_data, parameters["device"], mode="inference")
+    test_output = data.output_to_torch_tensor(output_data, parameters["device"], mode="inference")
+    test_input.requires_grad = True
+    gt_classes = test_output.max(dim=1)[1]
+
+    if parameters["use_batch_norm_memory"]:
+        logits = target_network.forward(
+            test_input,
+            weights=weights,
+            condition=parameters["number_of_task"],
         )
-        test_output = data.output_to_torch_tensor(
-            output_data, parameters["device"], mode="inference"
-        )
-        test_input.requires_grad = True
-        gt_classes = test_output.max(dim=1)[1]
+    else:
+        logits = target_network.forward(test_input, weights=weights)
 
-        if parameters["use_batch_norm_memory"]:
-            logits = target_network.forward(
-                test_input,
-                weights=weights,
-                condition=parameters["number_of_task"],
-            )
-        else:
-            logits = target_network.forward(test_input, weights=weights)
+    if len(logits) == 2:
+        logits, _ = logits
 
-        if len(logits) == 2:
-            logits, _ = logits
+    predictions = logits.max(dim=1)[1]
 
-        predictions = logits.max(dim=1)[1]
+    if evaluation_dataset == "test":
+        # FGSM, PGD, AutoAttack, None
 
-        if evaluation_dataset == "test":
-            # FGSM, PGD, AutoAttack, None
+        attack_method = "AutoAttack"
+        if attack_method == None:
+            pass
+            # accuracy = (
+            #                    torch.sum(gt_classes == predictions).float() / gt_classes.numel()
+            #            ) * 100.0
+            # return accuracy
+        elif attack_method == "FGSM":
+            ksi = 25 / 255 # attack strength
+            criterion = nn.CrossEntropyLoss()
+            loss = criterion(logits, gt_classes)
+            target_network.zero_grad()
+            loss.backward()
 
-            attack_method = "AutoAttack"
-            if attack_method == None:
-                pass
-                # accuracy = (
-                #                    torch.sum(gt_classes == predictions).float() / gt_classes.numel()
-                #            ) * 100.0
-                # return accuracy
-            elif attack_method == "FGSM":
-                ksi = 25 / 255 # attack strength
-                criterion = nn.CrossEntropyLoss()
-                loss = criterion(logits, gt_classes)
+            perturbation = torch.clamp(ksi * test_input.grad.data.sign(), -0.01,0.01)
+
+            # data_grad = test_input.grad.data
+            # signed_grad = data_grad.sign()
+            # perturbation = ksi * signed_grad
+            perturbed_test_input = test_input + perturbation
+            perturbed_test_input = torch.clamp(perturbed_test_input, 0, 1)
+
+            assert torch.max(torch.abs(perturbed_test_input - test_input)) <= 0.01
+
+            perturbed_output, _ = target_network.forward(perturbed_test_input, weights=weights)
+            perturbed_pred = perturbed_output.max(dim=1)[1]
+            perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100
+
+            return perturbed_acc
+        elif attack_method == 'PGD':
+            ksi = 40 / 255
+            alpha = 1
+            random_start = False
+            num_iteration = min(ksi + 4, 1.25 * ksi)
+            criterion = nn.CrossEntropyLoss()
+
+            perturbed_input = test_input.clone().detach()
+            perturbed_input.requires_grad = True
+
+            if random_start:
+                perturbed_input += torch.empty_like(perturbed_input).uniform_(-ksi, ksi)
+                perturbed_input = torch.clamp(perturbed_input, 0, 1)
+
+            for it in range(num_iteration):
+                perturbed_input.requires_grad_()
+                outputs, _ = target_network.forward(perturbed_input, weights=weights)
+
+                loss = criterion(outputs, gt_classes)
                 target_network.zero_grad()
-                loss.backward()
+                loss.backward(retain_graph=True)
 
-                perturbation = torch.clamp(ksi * test_input.grad.data.sign(), -0.01,0.01)
+                perturbation = alpha * perturbed_input.grad.sign()
+                perturbed_input = perturbed_input + perturbation
+                perturbed_input = torch.clamp(perturbed_input, -ksi, ksi).detach()
 
-                # data_grad = test_input.grad.data
-                # signed_grad = data_grad.sign()
-                # perturbation = ksi * signed_grad
-                perturbed_test_input = test_input + perturbation
-                perturbed_test_input = torch.clamp(perturbed_test_input, 0, 1)
+                perturbed_input.requires_grad_()
 
-                assert torch.max(torch.abs(perturbed_test_input - test_input)) <= 0.01
-                
-                perturbed_output, _ = target_network.forward(perturbed_test_input, weights=weights)
-                perturbed_pred = perturbed_output.max(dim=1)[1]
-                perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100
+            perturbed_output, _ = target_network.forward(perturbed_input, weights=weights)
+            perturbed_pred = perturbed_output.max(dim=1)[1]
+            perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100.0
 
-                return perturbed_acc
-            elif attack_method == 'PGD':
-                ksi = 40 / 255
-                alpha = 1
-                random_start = False
-                num_iteration = min(ksi + 4, 1.25 * ksi)
-                criterion = nn.CrossEntropyLoss()
+            return perturbed_acc
+        elif attack_method == 'AutoAttack':
+            ksi = 20/255
+            adversary = AutoAttack(
+                lambda x: target_network.forward(x, weights=weights)[0],
+                norm='L2',
+                eps=ksi,
+                version='standard',
+                device=parameters["device"]
+            )
+            perturbed_input = test_input.clone().detach()
+            x_adv = adversary.run_standard_evaluation(perturbed_input, gt_classes, bs=batch_size)
 
-                perturbed_input = test_input.clone().detach()
-                perturbed_input.requires_grad = True
+            perturbed_output, _ = target_network.forward(x_adv, weights=weights)
+            perturbed_pred = perturbed_output.max(dim=1)[1]
+            perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100.0
 
-                if random_start:
-                    perturbed_input += torch.empty_like(perturbed_input).uniform_(-ksi, ksi)
-                    perturbed_input = torch.clamp(perturbed_input, 0, 1)
+            return perturbed_acc
 
-                for it in range(num_iteration):
-                    perturbed_input.requires_grad_()
-                    outputs, _ = target_network.forward(perturbed_input, weights=weights)
-
-                    loss = criterion(outputs, gt_classes)
-                    target_network.zero_grad()
-                    loss.backward(retain_graph=True)
-
-                    perturbation = alpha * perturbed_input.grad.sign()
-                    perturbed_input = perturbed_input + perturbation
-                    perturbed_input = torch.clamp(perturbed_input, -ksi, ksi).detach()
-
-                    perturbed_input.requires_grad_()
-
-                perturbed_output, _ = target_network.forward(perturbed_input, weights=weights)
-                perturbed_pred = perturbed_output.max(dim=1)[1]
-                perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100.0
-
-                return perturbed_acc
-            elif attack_method == 'AutoAttack':
-                ksi = 20/255
-                adversary = AutoAttack(
-                    lambda x: target_network.forward(x, weights=weights)[0],
-                    norm='L2',
-                    eps=ksi,
-                    version='standard',
-                    device=parameters["device"]
-                )
-                perturbed_input = test_input.clone().detach()
-                x_adv = adversary.run_standard_evaluation(perturbed_input, gt_classes, bs=batch_size)
-
-                perturbed_output, _ = target_network.forward(x_adv, weights=weights)
-                perturbed_pred = perturbed_output.max(dim=1)[1]
-                perturbed_acc = (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel()) * 100.0
-
-                return perturbed_acc
-        # Calculate accuracy
-        accuracy = (
-            torch.sum(gt_classes == predictions).float() / gt_classes.numel()
-        ) * 100.0
+    accuracy = torch.sum(gt_classes == predictions).float() / gt_classes.numel() * 100.0
     return accuracy
 
 
@@ -319,12 +312,6 @@ def evaluate_previous_tasks(
     hypernetwork.eval()
     target_network.eval()
     for task in range(parameters["number_of_task"] + 1):
-        # Target entropy calculation should be included here: hypernetwork
-        # has to be inferred for each task (together with the target network)
-        # and the task_id with the lowest entropy has to be chosen
-        # Arguments of the function: list of permutations, hypernetwork,
-        # sparsity, target network
-        # output: task id
         currently_tested_task = list_of_permutations[task]
         # Generate weights of the target network
         hypernetwork_weights = hypernetwork.forward(cond_id=task)
@@ -405,10 +392,6 @@ def calculate_robustness_acc(dataframe):
     --------
       normed_robustness_acc (float): The computed ACC metric.
     """
-    #dataframe = pd.read_csv(load_path, delimiter=";", index_col=0)
-    #dataframe = dataframe.astype(
-    #    {"after_learning_of_task": "int32", "tested_task": "int32"}
-    #)
     if len(dataframe) != 0:
         last_task = dataframe["after_learning_of_task"].max()
         accuracies_after_last_task = dataframe[dataframe["after_learning_of_task"] == last_task]
@@ -435,10 +418,6 @@ def calculate_BWT(dataframe):
     --------
       BWT (float): The computed BWT metric.
     """
-    #dataframe = pd.read_csv(load_path, delimiter=";", index_col=0)
-    #dataframe = dataframe.astype(
-    #    {"after_learning_of_task": "int32", "tested_task": "int32"}
-    #)
 
     if len(dataframe) > 1:
         last_task = dataframe["after_learning_of_task"].max()
@@ -490,7 +469,6 @@ def robustness_graph(load_path):
     plt.close()
 
 
-
 def bwt_graph(load_path):
     """
     Plot graph presenting BWT metric results for different learning tasks
@@ -517,7 +495,6 @@ def bwt_graph(load_path):
     plt.tight_layout()
     plt.savefig(load_path.replace(".csv", "_BWT.pdf"), dpi=300)
     plt.close()
-
 
 
 def train_single_task(
@@ -555,8 +532,6 @@ def train_single_task(
       *hypernetwork*: a modified module of hypernetwork
       *target_network*: a modified module of the target network
     """
-    # Optimizer cannot be located outside of this function because after
-    # deep copy of the network it needs to be reinitialized
     if parameters["optimizer"] == "adam":
         optimizer = torch.optim.Adam(
             [*hypernetwork.parameters()],
@@ -589,13 +564,8 @@ def train_single_task(
         )
         previous_hnet_theta = None
         previous_hnet_embeddings = None
-        previous_target_weights = deepcopy(target_network.weights)
-    else:
-        previous_target_weights = None
 
-    if (parameters["target_network"] == "ResNet") and parameters[
-        "use_batch_norm"
-    ]:
+    if (parameters["target_network"] == "ResNet") and parameters["use_batch_norm"]:
         use_batch_norm_memory = True
     else:
         use_batch_norm_memory = False
@@ -625,9 +595,7 @@ def train_single_task(
             )
     for iteration in range(parameters["number_of_iterations"]):
 
-        current_batch = current_dataset_instance.next_train_batch(
-            parameters["batch_size"]
-        )
+        current_batch = current_dataset_instance.next_train_batch(parameters["batch_size"])
         tensor_input = current_dataset_instance.input_to_torch_tensor(
             current_batch[0], parameters["device"], mode="train"
         )
@@ -635,14 +603,7 @@ def train_single_task(
             current_batch[1], parameters["device"], mode="train"
         )
         gt_output = tensor_output.max(dim=1)[1]
-
         optimizer.zero_grad()
-        # Get weights of the hypernetwork and apply binary mask
-        # to the target network
-        hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
-
-        current_sparsity_parameter = parameters["sparsity_parameter"]
-
         loss_norm_target_regularizer = 0.0
 
         if "weights" in dir(target_network):
@@ -650,12 +611,8 @@ def train_single_task(
         else:
             target_weights = target_network
 
-        # Even if batch normalization layers are applied, statistics
-        # for the last saved tasks will be applied so there is no need to
-        # give 'current_no_of_task' as a value for the 'condition' argument.
         if parameters["target_network"] == "epsMLP":
             default_eps = target_network.epsilon
-            # calculate_number_of_iterations(number_of_samples, match_size, number_of_epochs)[1]
             total_iterations = parameters["number_of_iterations"]
             inv_total_iterations = 1 / total_iterations
             target_network.epsilon = iteration * inv_total_iterations * default_eps
@@ -675,9 +632,7 @@ def train_single_task(
             loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
             target_network.epsilon = default_eps
         else:
-            prediction = target_network.forward(
-                tensor_input, weights=target_weights
-            )
+            prediction = target_network.forward(tensor_input, weights=target_weights)
             loss_current_task = criterion(prediction, gt_output)
             print(f' loss: {loss_current_task.item()}')
         loss_regularization = 0.0
@@ -708,11 +663,8 @@ def train_single_task(
         loss.backward()
         optimizer.step()
 
-
         if parameters["number_of_epochs"] is None:
-            condition = (iteration % 100 == 0) or (
-                iteration == (parameters["number_of_iterations"] - 1)
-            )
+            condition = (iteration % 100 == 0) or (iteration == (parameters["number_of_iterations"] - 1))
         else:
             condition = (
                 (iteration % 100 == 0)
@@ -786,11 +738,7 @@ def build_multiple_task_experiment(
       *dataframe*: (Pandas Dataframe) contains results from consecutive
                    evaluations for all previous tasks
     """
-    output_shape = list(dataset_list_of_tasks[0].get_train_outputs())[0].shape[
-        0
-    ]
-    # Create a target network which will be multilayer perceptron
-    # or ResNet/ZenkeNet with internal weights
+    output_shape = list(dataset_list_of_tasks[0].get_train_outputs())[0].shape[0]
     if parameters["target_network"] == "MLP":
         target_network = MLP(
             n_in=parameters["input_shape"],
@@ -854,32 +802,19 @@ def build_multiple_task_experiment(
         ).to(parameters["device"])
 
     criterion = nn.CrossEntropyLoss()
-    dataframe = pd.DataFrame(
-        columns=["after_learning_of_task", "tested_task", "accuracy"]
-    )
+    dataframe = pd.DataFrame(columns=["after_learning_of_task", "tested_task", "accuracy"])
 
-    if (parameters["target_network"] == "ResNet") and parameters[
-        "use_batch_norm"
-    ]:
+    if (parameters["target_network"] == "ResNet") and parameters["use_batch_norm"]:
         use_batch_norm_memory = True
     else:
         use_batch_norm_memory = False
     hypernetwork.train()
     target_network.train()
     for no_of_task in range(parameters["number_of_tasks"]):
-        hypernetwork, target_network = train_single_task(
-            hypernetwork,
-            target_network,
-            criterion,
-            parameters,
-            dataset_list_of_tasks,
-            no_of_task,
-        )
-
         target_network = torch.load("Results/grid_search/permuted_mnist/0/target_network_after_9_task.pt")
         hypernetwork = torch.load("Results/grid_search/permuted_mnist/0/hypernetwork_after_9_task.pt")
 
-        if no_of_task == (parameters["number_of_tasks"] - 1):
+        if no_of_task <= (parameters["number_of_tasks"] - 1):
             # Save current state of networks
             write_pickle_file(
                 f'{parameters["saving_folder"]}/'
@@ -1063,8 +998,7 @@ if __name__ == "__main__":
         lambda_par = elements[5]
         batch_size = elements[6]
         norm_regularizer_masking = elements[7]
-        # Of course, seed is not optimized but it is easier to prepare experiments
-        # for multiple seeds in such a way
+        # Of course, seed is not optimized, but it is easier to prepare experiments for multiple seeds in such a way
         seed = elements[8]
 
         parameters = {
