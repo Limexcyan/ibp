@@ -8,11 +8,7 @@ import seaborn as sns
 import torch.optim as optim
 from hypnettorch.mnets import MLP
 from hypnettorch.mnets.resnet import ResNet
-from scipy.special.cython_special import eval_sh_legendre
-
 from epsMLP import epsMLP
-import attacks
-import metrics
 
 from ZenkeNet64 import ZenkeNet
 from hypnettorch.hnets import HMLP
@@ -21,9 +17,10 @@ import hypnettorch.utils.hnet_regularizer as hreg
 from torch import nn
 from datetime import datetime
 from itertools import product
-#from torchpercentile import Percentile
 from copy import deepcopy
 from retry import retry
+
+from torchattacks import FGSM, PGD, AutoAttack
 
 from datasets import (
     set_hyperparameters,
@@ -93,26 +90,6 @@ def get_shapes_of_network(model):
     return shapes_of_model
 
 
-def calculate_current_threshold(
-    current_iteration, max_sparsity, no_of_last_iteration
-):
-    """
-    Change the value of sparsity according to the current number
-    of iteration, the number of iteration for which sparsity
-    should achieve the maximum level, and the desired maximum level
-    of sparsity.
-    """
-    assert current_iteration >= 0.0
-    assert no_of_last_iteration >= 0.0
-    assert 100.0 >= max_sparsity >= 0.0
-    if current_iteration >= no_of_last_iteration:
-        return max_sparsity
-    else:
-        coefficient = max_sparsity / no_of_last_iteration
-        current_sparsity = coefficient * current_iteration
-        return current_sparsity
-
-
 def calculate_number_of_iterations(
     number_of_samples, batch_size, number_of_epochs
 ):
@@ -136,30 +113,6 @@ def calculate_number_of_iterations(
     no_of_iterations_per_epoch = int(np.ceil(number_of_samples / batch_size))
     total_no_of_iterations = int(no_of_iterations_per_epoch * number_of_epochs)
     return no_of_iterations_per_epoch, total_no_of_iterations
-
-
-def get_number_of_batch_normalization_layer(target_network):
-    """
-    Get a number of batch normalization layer in a given target network.
-    Each normalization layer consists of two vectors.
-
-    Arguments:
-    ----------
-      *target_network* (hypnettorch.mnets instance) a target network for which
-                       a mask will be created
-    """
-    if "batchnorm_layers" in dir(target_network):
-        if target_network.batchnorm_layers is None:
-            num_of_batch_norm_layers = 0
-        else:
-            # Each layer contains a vector of means and a vector of
-            # standard deviations
-            num_of_batch_norm_layers = 2 * len(target_network.batchnorm_layers)
-    else:
-        num_of_batch_norm_layers = 0
-    return num_of_batch_norm_layers
-
-
 
 def calculate_accuracy(data, target_network, weights, parameters, evaluation_dataset):
     """
@@ -313,164 +266,6 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
         ) * 100.0
     return accuracy
 
-def prepare_network_sparsity(weights, threshold, verbose=False):
-    """
-    Function for selection of top N% of weights in consecutive
-    network layers
-
-    Arguments:
-    ----------
-       *weights*: list of torch.Tensor objects containing weights
-                  of the network
-       *threshold*: float from the range (0, 100) for the selection
-                    of most important weights
-       *verbose*: optional Boolean defining whether additional information
-                  should be written
-
-    Returns:
-    --------
-       *masks*: list of torch.Tensor objects containing binary
-                values indicating which weights were selected
-                as the most important ones (1) and which ones
-                are considered as the insignificant ones
-    """
-    masks = []
-    for i in range(len(weights)):
-        revalued_layer = torch.abs(torch.tanh(weights[i]))
-        if i < (len(weights) - 1):
-            #percentile_value = Percentile()(
-            #    revalued_layer.flatten(), [threshold]
-            #)
-            sorted_tensor, _ = torch.sort(revalued_layer.flatten())
-            percentile_index = len(sorted_tensor) - 1
-            lower_index = int(
-                torch.floor(torch.tensor(percentile_index * threshold/100, dtype=torch.float32)).item())
-            upper_index = int(
-                torch.ceil(torch.tensor(percentile_index * threshold/100, dtype=torch.float32)).item())
-            if lower_index == upper_index:
-                percentile_value = sorted_tensor[lower_index]
-            else:
-                lower_part = sorted_tensor[lower_index] * (1 - percentile_index - lower_index)
-                upper_part = sorted_tensor[upper_index] * (percentile_index - lower_index)
-                percentile_value = lower_part + upper_part
-
-            assert type(percentile_value.item()) == float
-            zeros_weights = torch.zeros(
-                revalued_layer.shape, device=revalued_layer.device
-            )
-            mask = torch.where(
-                revalued_layer >= percentile_value,
-                revalued_layer,
-                zeros_weights,
-            )
-            masks.append(mask)
-        else:
-            masks.append(revalued_layer)
-
-        if verbose:
-            ratio = torch.sum(masks[-1] > 0.0).item() / torch.numel(masks[-1])
-            print(f"The ratio of non-zero elements: {ratio}")
-
-    return masks
-
-
-def unittest_prepare_network_sparsity():
-    """
-    Unittest of 'prepare_network_sparsity' function
-    """
-    test_list_of_tensors = [
-        torch.Tensor([[0.1, 0.2, -0.1, -0.2, 0.03], [1, -1, 0.0, 0.45, -0.02]]),
-        torch.Tensor(
-            [[0.1, 0.2, 0.3, -0.5, 0.6], [0.01, -0.01, 0.5, 0.08, 0.11]]
-        ),
-    ]
-    sparsity = 70
-    test_output = prepare_network_sparsity(test_list_of_tensors, sparsity)
-    gt_mask = [
-        torch.Tensor(
-            [
-                [0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
-                [0.7616, 0.7616, 0.0000, 0.4219, 0.0000],
-            ]
-        ),
-        torch.Tensor(
-            [
-                [0.0997, 0.1974, 0.2913, 0.4621, 0.5370],
-                [0.0100, 0.0100, 0.4621, 0.0798, 0.1096],
-            ]
-        ),
-    ]
-    for i in range(len(gt_mask)):
-        torch.allclose(test_output[i], gt_mask[i])
-    print("Unittest passed!")
-
-
-def apply_mask_to_weights_of_network(
-    target_network, masks, num_of_batch_norm_layers=None
-):
-    """
-    Multiply each weight of the *target_network* by the value
-    defined in the *masks* list
-
-    Arguments:
-    ----------
-       *target_network*: an instance of the hypnettorch.mnets, i.e.
-                         a network which will be a target
-                         network in tandem with a hypernetwork
-       *masks*: list of torch.Tensor objects containing values
-                of masks for the target network
-       *num_of_batch_norm_layers*: optional int, the number of batch normalization
-                                   layers in the target network; in some cases
-                                   its calculation may be not possible, therefore
-                                   it needs to be given as an external argument
-
-    Returns:
-    --------
-       A modified weights of the target network
-    """
-    if num_of_batch_norm_layers is None:
-        num_of_batch_norm_layers = get_number_of_batch_normalization_layer(
-            target_network
-        )
-    if "weights" in dir(target_network):
-        target_network_weights = target_network.weights
-    else:
-        target_network_weights = target_network
-
-    if type(target_network_weights) == list:
-        total_no_of_layers = len(target_network_weights)
-    else:
-        total_no_of_layers = len([*target_network_weights.parameters()])
-
-    if num_of_batch_norm_layers > 0:
-        assert (len(masks) + num_of_batch_norm_layers) == total_no_of_layers
-    else:
-        assert len(masks) == total_no_of_layers
-
-    masked_weights = []
-    if num_of_batch_norm_layers > 0:
-        # Append batch normalization layers, if any
-        for i in range(num_of_batch_norm_layers):
-            masked_weights.append(target_network_weights[i])
-    # Batch normalization layers are located at the beginning
-    # of the network's parameter list
-    for no_of_layer in range(len(masks)):
-        assert (
-            masks[no_of_layer].shape
-            == target_network_weights[
-                no_of_layer + num_of_batch_norm_layers
-            ].shape
-        )
-        if no_of_layer == len(masks) - 1:
-            masked_weights.append(
-                target_network_weights[no_of_layer + num_of_batch_norm_layers]
-            )
-        else:
-            masked_weights.append(
-                target_network_weights[no_of_layer + num_of_batch_norm_layers]
-                * masks[no_of_layer]
-            )
-    return masked_weights
 
 
 def evaluate_previous_tasks(
@@ -533,17 +328,15 @@ def evaluate_previous_tasks(
         currently_tested_task = list_of_permutations[task]
         # Generate weights of the target network
         hypernetwork_weights = hypernetwork.forward(cond_id=task)
-        masks = prepare_network_sparsity(
-            hypernetwork_weights, sparsity_parameter
-        )
-        target_weights = apply_mask_to_weights_of_network(
-            target_network,
-            masks
-        )
+        if "weights" in dir(target_network):
+            target_network_weights = target_network.weights
+        else:
+            target_network_weights = target_network
+
         accuracy = calculate_accuracy(
             currently_tested_task,
             target_network,
-            target_weights,
+            target_network_weights,
             parameters=parameters,
             evaluation_dataset="test",
         )
@@ -766,12 +559,12 @@ def train_single_task(
     # deep copy of the network it needs to be reinitialized
     if parameters["optimizer"] == "adam":
         optimizer = torch.optim.Adam(
-            [*hypernetwork.parameters(), *target_network.parameters()],
+            [*hypernetwork.parameters()],
             lr=parameters["learning_rate"],
         )
     elif parameters["optimizer"] == "rmsprop":
         optimizer = torch.optim.RMSprop(
-            [*hypernetwork.parameters(), *target_network.parameters()],
+            [*hypernetwork.parameters()],
             lr=parameters["learning_rate"],
         )
     else:
@@ -789,7 +582,6 @@ def train_single_task(
     # Compute targets for the regularization part of loss before starting
     # the training of a current task
     hypernetwork.train()
-    target_network.train()
     print(f"task: {current_no_of_task}")
     if current_no_of_task > 0:
         regularization_targets = hreg.get_current_targets(
@@ -832,8 +624,6 @@ def train_single_task(
                 verbose=True,
             )
     for iteration in range(parameters["number_of_iterations"]):
-        # hypernetwork.train()
-        # target_network.train()
 
         current_batch = current_dataset_instance.next_train_batch(
             parameters["batch_size"]
@@ -852,53 +642,14 @@ def train_single_task(
         hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
 
         current_sparsity_parameter = parameters["sparsity_parameter"]
-        if current_no_of_task == 0 and parameters["adaptive_sparsity"]:
-            current_sparsity_parameter = calculate_current_threshold(
-                iteration + 1,
-                parameters["sparsity_parameter"],
-                parameters["number_of_iterations"],
-            )
-        masks = prepare_network_sparsity(
-            hnet_weights, current_sparsity_parameter
-        )
-        loss_norm_target_regularizer = 0.0
-        if current_no_of_task > 0:
-            # Add another regularizer for weights, e.g. according
-            # to L1 or L2 norm. The goal is to prevent significant
-            # changes in weights between consecutive tasks.
-            # ATTENTION! This norm is not calculated for batch
-            # normalization layers
-            # This norm is applied BEFORE the multiplication by
-            # mask from the hypernetwork
-            no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
-                target_network
-            )
-            for no_of_layer in range(len(masks)):
-                if parameters["norm_regularizer_masking"]:
-                    loss_norm_target_regularizer += torch.norm(
-                        (
-                                target_network.weights[
-                                    no_of_layer + no_of_batch_norm_layers
-                                    ]
-                                - previous_target_weights[
-                                    no_of_layer + no_of_batch_norm_layers
-                                    ]
-                        )
-                        * masks[no_of_layer],
-                        p=parameters["norm"],
-                    )
-                else:
-                    loss_norm_target_regularizer += torch.norm(
-                        target_network.weights[
-                            no_of_layer + no_of_batch_norm_layers
-                        ]
-                        - previous_target_weights[
-                            no_of_layer + no_of_batch_norm_layers
-                        ],
-                        p=parameters["norm"],
-                    )
 
-        target_weights = apply_mask_to_weights_of_network(target_network, masks)
+        loss_norm_target_regularizer = 0.0
+
+        if "weights" in dir(target_network):
+            target_weights = target_network.weights
+        else:
+            target_weights = target_network
+
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
         # give 'current_no_of_task' as a value for the 'condition' argument.
@@ -995,13 +746,6 @@ def train_single_task(
                     best_val_accuracy = accuracy
                     best_hypernetwork = deepcopy(hypernetwork)
                     best_target_network = deepcopy(target_network)
-            if parameters["save_masks"]:
-                filename = (
-                    f"mask_task_{current_no_of_task}_" f"iteration_{iteration}_"
-                )
-                write_pickle_file(
-                    f'{parameters["saving_folder"]}/{filename}', masks
-                )
             if (
                 parameters["number_of_epochs"] is not None
                 and parameters["lr_scheduler"]
@@ -1053,7 +797,7 @@ def build_multiple_task_experiment(
             n_out=output_shape,
             hidden_layers=parameters["target_hidden_layers"],
             use_bias=parameters["use_bias"],
-            no_weights=False,
+            no_weights=True,
         ).to(parameters["device"])
     elif parameters["target_network"] == "epsMLP":
         target_network = epsMLP(
@@ -1061,7 +805,7 @@ def build_multiple_task_experiment(
             n_out=output_shape,
             hidden_layers=parameters["target_hidden_layers"],
             use_bias=parameters["use_bias"],
-            no_weights=False,
+            no_weights=True,
             epsilon=0.01,
         ).to(parameters["device"])
     elif parameters["target_network"] == "ResNet":
@@ -1071,7 +815,7 @@ def build_multiple_task_experiment(
             num_classes=output_shape,
             n=parameters["resnet_number_of_layer_groups"],
             k=parameters["resnet_widening_factor"],
-            no_weights=False,
+            no_weights=True,
             use_batch_norm=parameters["use_batch_norm"],
             bn_track_stats=False,
         ).to(parameters["device"])
@@ -1086,15 +830,12 @@ def build_multiple_task_experiment(
             in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
             num_classes=output_shape,
             arch=architecture,
-            no_weights=False,
+            no_weights=True,
         ).to(parameters["device"])
     # Create a hypernetwork based on the shape of the target network
-    no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
-        target_network
-    )
     if not use_chunks:
         hypernetwork = HMLP(
-            target_network.param_shapes[no_of_batch_norm_layers:],
+            target_network.param_shapes[0:],
             uncond_in_size=0,
             cond_in_size=parameters["embedding_size"],
             activation_fn=parameters["activation_function"],
@@ -1103,7 +844,7 @@ def build_multiple_task_experiment(
         ).to(parameters["device"])
     else:
         hypernetwork = ChunkedHMLP(
-            target_shapes=target_network.param_shapes[no_of_batch_norm_layers:],
+            target_shapes=target_network.param_shapes[0:],
             chunk_size=parameters["chunk_size"],
             chunk_emb_size=parameters["chunk_emb_size"],
             cond_in_size=parameters["embedding_size"],
@@ -1276,7 +1017,6 @@ def main_running_experiments(path_to_datasets, parameters):
 
 
 if __name__ == "__main__":
-    unittest_prepare_network_sparsity()
     path_to_datasets = "./Data"
     dataset = "PermutedMNIST"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet',
