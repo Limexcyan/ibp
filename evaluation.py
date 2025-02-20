@@ -29,6 +29,7 @@ import torch
 from numpy.testing import assert_almost_equal
 from collections import defaultdict
 from sklearn.manifold import TSNE
+from epsMLP import epsMLP
 
 
 def load_dataset(dataset, path_to_datasets, hyperparameters):
@@ -68,6 +69,14 @@ def load_dataset(dataset, path_to_datasets, hyperparameters):
 
 def prepare_target_network(hyperparameters, output_shape):
     if hyperparameters["target_network"] == "MLP":
+        target_network = MLP(
+            n_in=hyperparameters["shape"],
+            n_out=output_shape,
+            hidden_layers=hyperparameters["target_hidden_layers"],
+            use_bias=hyperparameters["use_bias"],
+            no_weights=False,
+        ).to(hyperparameters["device"])
+    elif hyperparameters["target_network"] == "epsMLP":
         target_network = MLP(
             n_in=hyperparameters["shape"],
             n_out=output_shape,
