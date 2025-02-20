@@ -57,6 +57,7 @@ def calculate_number_of_iterations(number_of_samples, batch_size, number_of_epoc
 
 
 def calculate_accuracy(data, target_network, weights, parameters, evaluation_dataset):
+    target_network = deepcopy(target_network)
     target_network.eval()
     # with torch.no_grad():
     if 1:
@@ -66,6 +67,8 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
         elif evaluation_dataset == "test":
             input_data = data.get_test_inputs()
             output_data = data.get_test_outputs()
+
+        # TODO assert na nieujemnosc danych (input_data)
 
         test_input = data.input_to_torch_tensor(input_data, parameters["device"], mode="inference")
         test_output = data.output_to_torch_tensor(output_data, parameters["device"], mode="inference")
@@ -78,7 +81,7 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
         if len(logits) == 2:
             logits, _ = logits
         predictions = logits.max(dim=1)[1]
-        attack = "FGSM"
+        attack = None
         if evaluation_dataset == "test" and attack is not None:
             target_network.mode = 'test'
             if attack == 'PGD':
@@ -103,20 +106,10 @@ def evaluate_previous_tasks(hypernetwork, target_network, dataframe_results, lis
     for task in range(parameters["number_of_task"] + 1):
         currently_tested_task = list_of_permutations[task]
         hypernetwork_weights = hypernetwork.forward(cond_id=task)
-
-        # TODO do smieci ???
-        masks = [torch.abs(torch.tanh(hypernetwork_weights[i])) for i in range(len(hypernetwork_weights))]
-        target_weights = []
-        for no_of_layer in range(len(masks)):
-            if no_of_layer == len(masks) - 1:
-                target_weights.append(target_network.weights[no_of_layer])
-            else:
-                target_weights.append(target_network.weights[no_of_layer] * masks[no_of_layer])
-        # TODO KONIEC SMIECIARKI
         accuracy = calculate_accuracy(
             currently_tested_task,
             target_network,
-            target_weights,
+            hypernetwork_weights,
             parameters=parameters,
             evaluation_dataset="test",
         )
@@ -197,23 +190,13 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         optimizer.zero_grad()
         hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
 
-        # TODO do smieci ???
-        masks = [torch.abs(torch.tanh(hnet_weights[i])) for i in range(len(hnet_weights))]
-        target_weights = []
-        for no_of_layer in range(len(masks)):
-            if no_of_layer == len(masks) - 1:
-                target_weights.append(target_network.weights[no_of_layer])
-            else:
-                target_weights.append(target_network.weights[no_of_layer] * masks[no_of_layer])
-        # TODO KONIEC SMIECIARKI
-
         if parameters["target_network"] == "epsMLP":
             default_eps = target_network.epsilon
             total_iterations = parameters["number_of_iterations"]
             inv_total_iterations = 1 / total_iterations
             target_network.epsilon = iteration * inv_total_iterations * default_eps
-
-            prediction, eps_prediction = target_network.forward(tensor_input, weights=target_weights)
+            # FIXME hnet czy target weights?
+            prediction, eps_prediction = target_network.forward(tensor_input, weights=hnet_weights)
 
             z_lower = prediction - eps_prediction.T
             z_upper = prediction + eps_prediction.T
@@ -226,7 +209,8 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
             target_network.epsilon = default_eps
         else:
-            prediction = target_network.forward(tensor_input, weights=target_weights)
+            # FIXME hnet czy target weights?
+            prediction = target_network.forward(tensor_input, weights=hnet_weights)
             loss_current_task = criterion(prediction, gt_output)
             print(f' loss: {loss_current_task.item()}')
         loss_current_task.backward()
@@ -249,7 +233,7 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             accuracy = calculate_accuracy(
                 current_dataset_instance,
                 target_network,
-                target_weights,
+                hnet_weights,
                 parameters={
                     "device": parameters["device"],
                     "use_batch_norm_memory": use_batch_norm_memory,
@@ -333,14 +317,10 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters, use_chunks
             dataset_list_of_tasks,
             no_of_task,
         )
-        # TODO czy wczytac jakas siec?
         if no_of_task <= (parameters["number_of_tasks"] - 1):
             write_pickle_file(
                 f'{parameters["saving_folder"]}/hypernetwork_after_{no_of_task}_task', hypernetwork.weights
             )
-            # write_pickle_file(
-            #     f'{parameters["saving_folder"]}/target_network_after_{no_of_task}_task',target_network.weights
-            # )
         dataframe = evaluate_previous_tasks(
             hypernetwork,
             target_network,
