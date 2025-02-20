@@ -13,7 +13,8 @@ class epsMLP(nn.Module, MainNetInterface):
         use_bias=True,
         no_weights=False,
         out_fn=None,
-        epsilon=0.01
+        epsilon=0.01,
+        mode=None
     ):
         # FIXME find a way using super to handle multiple inheritance.
         nn.Module.__init__(self)
@@ -31,6 +32,7 @@ class epsMLP(nn.Module, MainNetInterface):
         self._has_linear_out = True
 
         self.epsilon = epsilon
+        self.mode = mode
 
         self._param_shapes = []
         self._param_shapes_meta = []
@@ -87,7 +89,8 @@ class epsMLP(nn.Module, MainNetInterface):
 
     def forward(self, x, weights=None, distilled_params=None, condition=None):
         if weights is None:
-            raise ValueError("Weights must be provided.")
+           weights = self.weights
+           # raise ValueError("Weights must be provided.")
 
         w_weights = []
         b_weights = []
@@ -99,30 +102,26 @@ class epsMLP(nn.Module, MainNetInterface):
                 w_weights.append(p)
         hidden = x
         eps = (self.epsilon * torch.ones_like(hidden)).T
-        #print('eps1', eps)
+        # print(eps.shape)
         for l in range(len(w_weights)):
             W = w_weights[l]
             b = b_weights[l] if self.has_bias else None
 
             hidden = hidden @ W.T
             eps = torch.abs(W) @ eps
-            #print('eps2', eps)
             if b is not None:
                 hidden = hidden + b
 
-            # Apply activation function if not the last layer
             if l < len(w_weights) - 1:
                 z_lower = self._a_fun(hidden - eps.T)
                 z_upper = self._a_fun(hidden + eps.T)
-                #print('z_lower', z_lower)
-                #print('z_upper', z_upper)
                 hidden = (z_upper + z_lower) / 2
                 eps = (z_upper - z_lower) / 2
-                #print('eps3', eps)
                 eps = eps.T
-                #hidden = self._a_fun(hidden)
-
-        return hidden, eps
+        if self.mode == 'test':
+            return hidden
+        else:
+            return hidden, eps
 
     def distillation_targets(self):
         return None
