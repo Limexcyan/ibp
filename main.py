@@ -195,7 +195,6 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             total_iterations = parameters["number_of_iterations"]
             inv_total_iterations = 1 / total_iterations
             target_network.epsilon = iteration * inv_total_iterations * default_eps
-            # FIXME hnet czy target weights?
             prediction, eps_prediction = target_network.forward(tensor_input, weights=hnet_weights)
 
             z_lower = prediction - eps_prediction.T
@@ -209,7 +208,6 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
             target_network.epsilon = default_eps
         else:
-            # FIXME hnet czy target weights?
             prediction = target_network.forward(tensor_input, weights=hnet_weights)
             loss_current_task = criterion(prediction, gt_output)
             print(f' loss: {loss_current_task.item()}')
@@ -281,7 +279,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters, use_chunks
             hidden_layers=parameters["target_hidden_layers"],
             use_bias=parameters["use_bias"],
             no_weights=True,
-            epsilon=0.05,
+            epsilon=0.00,
         ).to(parameters["device"])
     if not use_chunks:
         hypernetwork = HMLP(
@@ -319,7 +317,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters, use_chunks
         )
         if no_of_task <= (parameters["number_of_tasks"] - 1):
             write_pickle_file(
-                f'{parameters["saving_folder"]}/hypernetwork_after_{no_of_task}_task', hypernetwork.weights
+                f'{parameters["saving_folder"]}/hnet{target_network.epsilon*10000}', hypernetwork.weights
             )
         dataframe = evaluate_previous_tasks(
             hypernetwork,
@@ -394,7 +392,7 @@ if __name__ == "__main__":
     dataset = "SplitMNIST"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'CIFAR100_FeCAM_setup'
     part = 1
-    create_grid_search = True
+    create_grid_search = False
     if create_grid_search:
         summary_results_filename = "grid_search_results"
     else:

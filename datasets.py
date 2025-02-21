@@ -609,14 +609,14 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
             # Best hyperparameters
             hyperparams = {
                 "seed": [1],
-                "embedding_sizes": [128],
+                "embedding_sizes": [72],
                 "sparsity_parameters": [30],
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
                 "betas": [0.001],
                 "lambdas": [0.001],
-                "norm_regularizer_masking_opts": [True],
-                "hypernetworks_hidden_layers": [[25, 25]],
+                "norm_regularizer_masking_opts": [False],
+                "hypernetworks_hidden_layers": [[75, 75]],
                 "augmentation": True,
                 "best_model_selection_method": "last_model",
                 "saving_folder": "./Results/split_mnist_test/",
@@ -626,7 +626,7 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
-        hyperparams["number_of_iterations"] = 200
+        hyperparams["number_of_iterations"] = 2000
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 1000
         hyperparams["no_of_validation_samples_per_class"] = 200
@@ -634,7 +634,7 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
         hyperparams["shape"] = 28**2
         hyperparams["number_of_tasks"] = 5
         hyperparams["chunk_size"] = 100
-        hyperparams["chunk_emb_size"] = 96
+        hyperparams["chunk_emb_size"] = 72
         hyperparams["use_chunks"] = False
         hyperparams["use_batch_norm"] = False
         hyperparams["adaptive_sparsity"] = True
@@ -645,7 +645,7 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
             hyperparams = {
                 "seed": [1],
                 "sparsity_parameters": [0],
-                "betas": [0.01],
+                "betas": [0.1],
                 "lambdas": [1],
                 "batch_sizes": [32],
                 "norm_regularizer_masking_opts": [False],
