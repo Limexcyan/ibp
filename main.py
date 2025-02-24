@@ -10,6 +10,7 @@ from hypnettorch.mnets import MLP
 from epsMLP import epsMLP
 from hypnettorch.hnets import HMLP
 from hypnettorch.hnets.chunked_mlp_hnet import ChunkedHMLP
+import hypnettorch.utils.hnet_regularizer as hreg
 from torch import nn
 from datetime import datetime
 from itertools import product
@@ -152,8 +153,13 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         best_target_network = deepcopy(target_network)
         best_val_accuracy = 0.0
     hypernetwork.train()
-    target_network.train()
     print(f"task: {current_no_of_task}")
+    if current_no_of_task > 0:
+        regularization_targets = hreg.get_current_targets(
+            current_no_of_task, hypernetwork
+        )
+        previous_hnet_theta = None
+        previous_hnet_embeddings = None
     use_batch_norm_memory = False
     current_dataset_instance = dataset_list_of_tasks[current_no_of_task]
     if parameters["number_of_epochs"] is not None:
@@ -195,6 +201,7 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             total_iterations = parameters["number_of_iterations"]
             inv_total_iterations = 1 / total_iterations
             target_network.epsilon = iteration * inv_total_iterations * default_eps
+
             prediction, eps_prediction = target_network.forward(tensor_input, weights=hnet_weights)
 
             z_lower = prediction - eps_prediction.T
@@ -211,7 +218,25 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             prediction = target_network.forward(tensor_input, weights=hnet_weights)
             loss_current_task = criterion(prediction, gt_output)
             print(f' loss: {loss_current_task.item()}')
-        loss_current_task.backward()
+        loss_regularization = 0.0
+        if current_no_of_task > 0:
+            loss_regularization = hreg.calc_fix_target_reg(
+                hypernetwork,
+                current_no_of_task,
+                targets=regularization_targets,
+                mnet=target_network,
+                prev_theta=previous_hnet_theta,
+                prev_task_embs=previous_hnet_embeddings,
+                inds_of_out_heads=None,
+                batch_size=-1,
+            )
+        loss = (
+            loss_current_task
+            + parameters["beta"]
+            * loss_regularization
+            / max(1, current_no_of_task)
+        )
+        loss.backward()
         optimizer.step()
         if parameters["number_of_epochs"] is None:
             condition = (iteration % 100 == 0) or (
@@ -279,7 +304,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters, use_chunks
             hidden_layers=parameters["target_hidden_layers"],
             use_bias=parameters["use_bias"],
             no_weights=True,
-            epsilon=0.00,
+            epsilon=0.05,
         ).to(parameters["device"])
     if not use_chunks:
         hypernetwork = HMLP(

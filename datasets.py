@@ -594,7 +594,7 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
             elif part == 1:
                 hyperparams["embedding_sizes"] = [96]
                 hyperparams["hypernetworks_hidden_layers"] = [[50, 50]]
-                hyperparams["betas"] = [0.01]
+                hyperparams["betas"] = [0.1]
                 hyperparams["sparsity_parameters"] = [30]
                 hyperparams["lambdas"] = [0.0001]
             elif part == 2:
@@ -613,7 +613,7 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
                 "sparsity_parameters": [30],
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
-                "betas": [0.001],
+                "betas": [0.1],
                 "lambdas": [0.001],
                 "norm_regularizer_masking_opts": [False],
                 "hypernetworks_hidden_layers": [[75, 75]],
