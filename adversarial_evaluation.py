@@ -45,22 +45,23 @@ def calculate_accuracy(data, target_network, weights, parameters, attack=None):
     else:
         logits, _ = target_network.forward(test_input, weights=weights)
 
-    predictions = logits.max(dim=1)[1]
+    predictions = logits.max(dim=1)
 
     target_network.mode = 'test'
-    if attack == None:
+    attack_instance = attack
+    if attack is None:
         perturbed_pred = predictions
-    elif attack == 'PGD':
-        attack = PGD(target_network, eps=1/255, alpha=1/255, steps=10, random_start=False)
-    elif attack == 'FGSM':
-        attack = FGSM(target_network, eps=0.001)
-    elif attack == 'AutoAttack':
-        attack = AutoAttack(target_network, norm='Linf', eps=8/255, version='standard', seed=None, verbose=False)
-
-    if attack is not None:
-        adv_images = attack(test_input, gt_classes)
+    else:
+        if attack == 'PGD':
+            attack_instance = PGD(target_network, eps=0.0099, alpha=1 / 255, steps=1, random_start=False)
+        elif attack == 'FGSM':
+            attack_instance = FGSM(target_network, eps=0.0099)
+        elif attack == 'AutoAttack':
+            attack_instance = AutoAttack(target_network, norm='Linf', eps=8 / 255, version='standard', seed=None,
+                                         verbose=False)
+        adv_images = attack_instance(test_input, gt_classes)
         adv_logits = target_network.forward(adv_images, weights=weights)
-        perturbed_pred = adv_logits.max(dim=1)[1]
+        perturbed_pred = adv_logits.argmax(dim=1)
 
     perturbed_acc = 100 * (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel())
     target_network.mode = None
@@ -114,7 +115,6 @@ def main_running_experiments(path_to_datasets, parameters, hypernetwork_model, e
         ).to(parameters["device"])
 
     hnet_weights = load_pickle_file(hypernetwork_model)
-    print(hnet_weights)
     dataframe = pd.DataFrame(columns=["tested_task", "accuracy"])
 
     hypernetwork.eval()
@@ -174,7 +174,6 @@ if __name__ == "__main__":
     os.makedirs(parameters["saving_folder"], exist_ok=True)
     if parameters["seed"] is not None:
         set_seed(parameters["seed"])
-    hnet001_path = 'Results/split_mnist_test/hnet000.pt'
-    dataframe001 = main_running_experiments(path_to_datasets, parameters, hnet001_path, epsilon=0.00, attack=None)
-    # dataframe002 = main_running_experiments(path_to_datasets, parameters, hypernetwork_001, epsilon=0.01, attack='FGSM')
-    # dataframe003 = main_running_experiments(path_to_datasets, parameters, hypernetwork_001, epsilon=0.01, attack='PGD')
+    hnet001_path = 'Results/split_mnist_test/2202 001/hnet100.0.pt'
+    # dataframe001 = main_running_experiments(path_to_datasets, parameters, hnet001_path, epsilon=0.01, attack=PGD)
+    dataframe002 = main_running_experiments(path_to_datasets, parameters, hnet001_path, epsilon=0.01, attack=FGSM)
