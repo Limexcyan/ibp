@@ -585,7 +585,7 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
                 "lambdas": [0.001],
                 # Seed is not for optimization but for ensuring multiple results
                 "seed": [1, 2, 3, 4, 5],
-                "best_model_selection_method": "last_model",
+                "best_model_selection_method": "val_loss",
                 "embedding_sizes": [128],
                 "augmentation": True,
             }
@@ -618,7 +618,7 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
                 "norm_regularizer_masking_opts": [False],
                 "hypernetworks_hidden_layers": [[75, 75]],
                 "augmentation": True,
-                "best_model_selection_method": "last_model",
+                "best_model_selection_method": "val_loss",
                 "saving_folder": "./Results/split_mnist_test/",
             }
         hyperparams["lr_scheduler"] = False

@@ -26,6 +26,7 @@ def set_seed(value):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+epsilon_IBP = 0
 
 def append_row_to_file(filename, elements):
     if not filename.endswith(".csv"):
@@ -82,21 +83,6 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
         if len(logits) == 2:
             logits, _ = logits
         predictions = logits.max(dim=1)[1]
-        attack = None
-        if evaluation_dataset == "test" and attack is not None:
-            target_network.mode = 'test'
-            if attack == 'PGD':
-                attack = PGD(target_network, eps=1/255, alpha=1/255, steps=10, random_start=False)
-            elif attack == 'FGSM':
-                attack = FGSM(target_network, eps=8/255)
-            elif attack == 'AutoAttack':
-                attack = AutoAttack(target_network, norm='Linf', eps=8/255, version='standard', seed=None, verbose=False)
-            adv_images = attack(test_input, gt_classes)
-            adv_logits = target_network.forward(adv_images, weights=weights)
-            perturbed_pred = adv_logits.max(dim=1)[1]
-            perturbed_acc = 100 * (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel())
-            target_network.mode = None
-            return perturbed_acc
         accuracy = torch.sum(gt_classes == predictions).float() / gt_classes.numel() * 100.0
         return accuracy
 
@@ -200,7 +186,8 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             default_eps = target_network.epsilon
             total_iterations = parameters["number_of_iterations"]
             inv_total_iterations = 1 / total_iterations
-            target_network.epsilon = iteration * inv_total_iterations * default_eps
+            if iteration <= int(total_iterations / 2):
+                target_network.epsilon = 2 * iteration * inv_total_iterations * default_eps
 
             prediction, eps_prediction = target_network.forward(tensor_input, weights=hnet_weights)
 
@@ -210,7 +197,10 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
 
             loss_spec = criterion(z, gt_output)
             loss_fit = criterion(prediction, gt_output)
-            kappa = 1 - (iteration * inv_total_iterations * 0.5)
+            if iteration <= int(total_iterations / 2):
+                kappa = 1 - (iteration * inv_total_iterations)
+            else:
+                kappa = 0.5
 
             loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
             target_network.epsilon = default_eps
@@ -238,6 +228,7 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         )
         loss.backward()
         optimizer.step()
+
         if parameters["number_of_epochs"] is None:
             condition = (iteration % 100 == 0) or (
                 iteration == (parameters["number_of_iterations"] - 1)
@@ -270,6 +261,10 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             )
             if parameters["best_model_selection_method"] == "val_loss":
                 if accuracy > best_val_accuracy:
+                    print('new best val acc')
+                    if target_network.epsilon != epsilon_IBP:
+                        print('Wrong model saved')
+                        pass
                     best_val_accuracy = accuracy
                     best_hypernetwork = deepcopy(hypernetwork)
                     best_target_network = deepcopy(target_network)
@@ -304,7 +299,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters, use_chunks
             hidden_layers=parameters["target_hidden_layers"],
             use_bias=parameters["use_bias"],
             no_weights=True,
-            epsilon=0.05,
+            epsilon=epsilon_IBP,
         ).to(parameters["device"])
     if not use_chunks:
         hypernetwork = HMLP(

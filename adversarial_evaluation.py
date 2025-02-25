@@ -17,7 +17,8 @@ from copy import deepcopy
 from retry import retry
 from datasets import set_hyperparameters, prepare_permuted_mnist_tasks, prepare_split_mnist_tasks
 from torch.hub import load_state_dict_from_url
-from torchattacks import PGD, FGSM, AutoAttack
+from torchattacks.attacks.fgsm import FGSM
+from torchattacks import PGD, AutoAttack
 
 def set_seed(value):
     random.seed(value)
@@ -34,7 +35,6 @@ def load_pickle_file(filename):
 def calculate_accuracy(data, target_network, weights, parameters, attack=None):
     target_network = deepcopy(target_network)
     target_network.eval()
-
     test_input = data.input_to_torch_tensor(data.get_test_inputs(), parameters["device"], mode="inference")
     test_output = data.output_to_torch_tensor(data.get_test_outputs(), parameters["device"], mode="inference")
     test_input.requires_grad = True
@@ -52,13 +52,14 @@ def calculate_accuracy(data, target_network, weights, parameters, attack=None):
     if attack is None:
         perturbed_pred = predictions
     else:
-        if attack == 'PGD':
-            attack_instance = PGD(target_network, eps=0.0099, alpha=1 / 255, steps=1, random_start=False)
-        elif attack == 'FGSM':
-            attack_instance = FGSM(target_network, eps=0.0099)
-        elif attack == 'AutoAttack':
-            attack_instance = AutoAttack(target_network, norm='Linf', eps=8 / 255, version='standard', seed=None,
-                                         verbose=False)
+        #if attack == 'PGD':
+        #    attack_instance = PGD(target_network, eps=0.0099, alpha=1 / 255, steps=1, random_start=False)
+        if 1==1: #attack == 'FGSM':
+            attack_instance = FGSM(target_network, eps=0.00999)
+        #elif attack == 'AutoAttack':
+        #    attack_instance = AutoAttack(target_network, norm='Linf', eps=8 / 255, version='standard', seed=None,
+        #                                 verbose=False)
+
         adv_images = attack_instance(test_input, gt_classes)
         adv_logits = target_network.forward(adv_images, weights=weights)
         perturbed_pred = adv_logits.argmax(dim=1)
@@ -139,11 +140,15 @@ def main_running_experiments(path_to_datasets, parameters, hypernetwork_model, e
             "accuracy": accuracy.cpu().item(),
         }
         print(f"Accuracy for task {task}: {accuracy}%.")
+
         dataframe = dataframe.append(result, ignore_index=True)
 
     dataframe = dataframe.astype({"tested_task": "int"})
     dataframe.to_csv(f'{parameters["saving_folder"]}/results_attacks.csv', sep=";")
     return dataframe
+
+def one_attack_multiinterval_plot(hnet_eps):
+    test_string = f'{parameters["saving_folder"]}/results_attacks_{hnet_eps}.csv'
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
@@ -174,6 +179,25 @@ if __name__ == "__main__":
     os.makedirs(parameters["saving_folder"], exist_ok=True)
     if parameters["seed"] is not None:
         set_seed(parameters["seed"])
-    hnet001_path = 'Results/split_mnist_test/2202 001/hnet100.0.pt'
-    # dataframe001 = main_running_experiments(path_to_datasets, parameters, hnet001_path, epsilon=0.01, attack=PGD)
-    dataframe002 = main_running_experiments(path_to_datasets, parameters, hnet001_path, epsilon=0.01, attack=FGSM)
+
+    hnet000_path = 'Results/split_mnist_test/2502 000/hnet0.pt'
+    # hnet001_path = 'Results/split_mnist_test/2502 001/hnet100.0.pt'
+    # hnet005_path = 'Results/split_mnist_test/2202 005/hnet500.0.pt'
+    main_running_experiments(path_to_datasets, parameters, hnet000_path, epsilon=0, attack=FGSM)
+    main_running_experiments(path_to_datasets, parameters, hnet000_path, epsilon=0.005, attack=FGSM)
+    main_running_experiments(path_to_datasets, parameters, hnet000_path, epsilon=0.009, attack=FGSM)
+    main_running_experiments(path_to_datasets, parameters, hnet000_path, epsilon=0.0099, attack=FGSM)
+    main_running_experiments(path_to_datasets, parameters, hnet000_path, epsilon=0.00999, attack=FGSM)
+    main_running_experiments(path_to_datasets, parameters, hnet000_path, epsilon=0.02, attack=FGSM)
+
+
+    # main_running_experiments(path_to_datasets, parameters, hnet000_path, epsilon=0.0499, attack=FGSM)
+    # main_running_experiments(path_to_datasets, parameters, hnet000_path, epsilon=0.1, attack=FGSM)
+    # main_running_experiments(path_to_datasets, parameters, hnet001_path, epsilon=0.0499, attack=FGSM)
+    # main_running_experiments(path_to_datasets, parameters, hnet001_path, epsilon=0.1, attack=FGSM)
+    # main_running_experiments(path_to_datasets, parameters, hnet005_path, epsilon=0.005, attack=FGSM)
+    # main_running_experiments(path_to_datasets, parameters, hnet005_path, epsilon=0.00999, attack=FGSM)
+    # main_running_experiments(path_to_datasets, parameters, hnet005_path, epsilon=0.02, attack=FGSM)
+    # main_running_experiments(path_to_datasets, parameters, hnet005_path, epsilon=0.0499, attack=FGSM)
+    # main_running_experiments(path_to_datasets, parameters, hnet005_path, epsilon=0.1, attack=FGSM)
+

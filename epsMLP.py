@@ -99,12 +99,8 @@ class epsMLP(nn.Module, MainNetInterface):
                 b_weights.append(p)
             else:
                 w_weights.append(p)
-        # print(x)
         hidden = x
-        # print('epsilon: ', self.epsilon)
-        # print('hide: ', hidden)
         eps = (self.epsilon * torch.ones_like(hidden)).T
-        # print('eps: ', eps)
         for l in range(len(w_weights)):
             W = w_weights[l]
             b = b_weights[l] if self.has_bias else None
@@ -121,7 +117,6 @@ class epsMLP(nn.Module, MainNetInterface):
                 eps = (z_upper - z_lower) / 2
                 eps = eps.T
         if self.mode == 'test':
-            print(hidden)
             return hidden
         else:
             return hidden, eps
