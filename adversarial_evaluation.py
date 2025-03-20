@@ -67,7 +67,6 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
         if attack == 'PGD':
             attack_instance = PGD(target_network, eps=epsilon, alpha=1/255, steps=1, random_start=False)
         if attack == 'FGSM':
-            print("????")
             attack_instance = FGSM(target_network, eps=epsilon)
         elif attack == 'AutoAttack':
             attack_instance = AutoAttack(target_network, norm='Linf', eps=epsilon, version='standard', seed=None, verbose=False)
