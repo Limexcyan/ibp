@@ -37,8 +37,37 @@ def plot_comparison(tasks_numbers, values_dict, title):
     plt.xticks([1, 2, 3, 4, 5])
     plt.grid(True)
     plt.savefig(f'Results/{title}.pdf')
-    # plt.show()
-    return 0
+    plt.savefig(f'Results/{title}.png')
+    #plt.show()
+
+def average_acc_plot(tasks_numbers, values_table):
+    plt.figure(figsize=(8, 5))
+    markers = ['o', 's']
+    pure_hnet = values_table[0]
+    ibp_hnet = values_table[1]
+
+    plt.plot(tasks_numbers,
+             [sum(pure_hnet[:j]) / j for j in range(1, len(pure_hnet) + 1)],
+             marker=markers[0],
+             label=r'$\epsilon_{\mathrm{train}}=0.0, \epsilon_{\mathrm{attack}}=0.005$')
+
+    plt.plot(tasks_numbers,
+             [sum(ibp_hnet[:j]) / j for j in range(1, len(ibp_hnet) + 1)],
+             marker=markers[1],
+             label=r'$\epsilon_{\mathrm{train}}=0.05, \epsilon_{\mathrm{attack}}=0.005$')
+
+    plt.xlabel("Task Number", fontsize=16)
+    plt.ylabel("Accuracy (%)", fontsize=16)
+    plt.title("Average Test Accuracy for the FGSM Attack", fontsize=18)
+    plt.legend(fontsize=14)
+    plt.xticks(tasks_numbers, fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.xticks(tasks_numbers)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f'Results/Average test accuracy for the FGSM attack.pdf', dpi=300)
+    plt.savefig(f'Results/Average test accuracy for the FGSM attack.png')
+
 
 
 tasks_numbers = [1, 2, 3, 4, 5]
@@ -106,14 +135,47 @@ FGSM01_dict = {
     "val005fgsm01": [46.335697174072266, 50.53868865966797, 47.65208053588867, 52.819740295410156, 64.85123443603516]
 }
 
-plot_comparison(tasks_numbers, val000_dict, "Accuracy for different attack strength (IBP, eps=0)")
-plot_comparison(tasks_numbers, val001_dict, "Accuracy for different attack strength (IBP, eps=0.01)")
-plot_comparison(tasks_numbers, val005_dict, "Accuracy for different attack strength (IBP, eps=0.05)")
+paper_plot_data = [
+    [48.557918548583984, 98.33496856689453, 99.67982482910156, 98.7411880493164, 97.57942199707031],
+    [98.58155822753906, 96.57199096679688, 99.57310485839844, 99.69789123535156, 92.33484649658203]
+]
 
-plot_comparison(tasks_numbers, non_attack_dict, "Accuracy for different IBP values (FGSM, eps=0)")
-plot_comparison(tasks_numbers, FGSM0005_dict, "Accuracy for different IBP values (FGSM, eps=0.005)")
-plot_comparison(tasks_numbers, FGSM00999_dict, "Accuracy for different IBP values (FGSM, eps=0.00999)")
-plot_comparison(tasks_numbers, FGSM002_dict, "Accuracy for different IBP values (FGSM, eps=0.02)")
-plot_comparison(tasks_numbers, FGSM00499_dict, "Accuracy for different IBP values (FGSM, eps=0.0499)")
-plot_comparison(tasks_numbers, FGSM01_dict, "Accuracy for different IBP values (FGSM, eps=0.01)")
+# average_acc_plot(tasks_numbers, paper_plot_data)
+
+# plot_comparison(tasks_numbers, val000_dict, "Accuracy for different attack strength (IBP, eps=0)")
+# plot_comparison(tasks_numbers, val001_dict, "Accuracy for different attack strength (IBP, eps=0.01)")
+# plot_comparison(tasks_numbers, val005_dict, "Accuracy for different attack strength (IBP, eps=0.05)")
+#
+# plot_comparison(tasks_numbers, non_attack_dict, "Accuracy for different IBP values (FGSM, eps=0)")
+# plot_comparison(tasks_numbers, FGSM0005_dict, "Accuracy for different IBP values (FGSM, eps=0.005)")
+# plot_comparison(tasks_numbers, FGSM00999_dict, "Accuracy for different IBP values (FGSM, eps=0.00999)")
+# plot_comparison(tasks_numbers, FGSM002_dict, "Accuracy for different IBP values (FGSM, eps=0.02)")
+# plot_comparison(tasks_numbers, FGSM00499_dict, "Accuracy for different IBP values (FGSM, eps=0.0499)")
+# plot_comparison(tasks_numbers, FGSM01_dict, "Accuracy for different IBP values (FGSM, eps=0.01)")
+
+pure_dict = {
+    "val000none": [99.81087493896484, 99.36336517333984, 99.89328002929688, 99.59718322753906, 99.24356842041016],
+    "val001none": [99.95272064208984, 99.31439971923828, 99.89328002929688, 99.84894561767578, 99.09228515625]
+}
+
+small_attack_dict = {
+    "val000fgsm0005": [48.557918548583984, 98.33496856689453, 99.67982482910156, 98.7411880493164, 97.57942199707031],
+    "val001fgsm0005": [96.78487396240234, 98.92262268066406, 99.57310485839844, 99.89929962158203, 98.38628387451172]
+}
+
+limit_attack_dict = {
+    "val000fgsm00999": [46.335697174072266, 98.28599548339844, 99.14620971679688, 98.38871765136719, 97.93242645263672],
+    "val001fgsm00999": [91.06382751464844, 99.02056884765625, 99.57310485839844, 99.74823760986328, 98.78971099853516]
+}
+
+big_attack_dict = {
+    "val000fgsm002": [46.335697174072266, 91.08716583251953, 85.0586929321289, 98.28801727294922, 91.0237045288086],
+    "val001fgsm002": [53.333335876464844, 96.08226776123047, 95.25080108642578, 98.38871765136719, 97.32727813720703]
+}
+
+plot_comparison(tasks_numbers, pure_dict, "Sieci bez ataku")
+plot_comparison(tasks_numbers, small_attack_dict, "Sieci z malym atakiem")
+plot_comparison(tasks_numbers, limit_attack_dict, "Sieci z atakiem granicznym")
+plot_comparison(tasks_numbers, big_attack_dict, "Sieci z atakiem wiekszym niz kostka")
+
 

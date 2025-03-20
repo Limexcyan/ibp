@@ -26,7 +26,7 @@ def set_seed(value):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-epsilon_IBP = 0
+epsilon_IBP = 0.01
 
 def append_row_to_file(filename, elements):
     if not filename.endswith(".csv"):
@@ -70,12 +70,12 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
             input_data = data.get_test_inputs()
             output_data = data.get_test_outputs()
 
-        # TODO assert na nieujemnosc danych (input_data)
-
         test_input = data.input_to_torch_tensor(input_data, parameters["device"], mode="inference")
         test_output = data.output_to_torch_tensor(output_data, parameters["device"], mode="inference")
+
         test_input.requires_grad = True
         gt_classes = test_output.max(dim=1)[1]
+
         if parameters["use_batch_norm_memory"]:
             logits = target_network.forward(test_input, weights=weights, condition=parameters["number_of_task"])
         else:
@@ -83,6 +83,7 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
         if len(logits) == 2:
             logits, _ = logits
         predictions = logits.max(dim=1)[1]
+
         accuracy = torch.sum(gt_classes == predictions).float() / gt_classes.numel() * 100.0
         return accuracy
 
@@ -93,6 +94,7 @@ def evaluate_previous_tasks(hypernetwork, target_network, dataframe_results, lis
     for task in range(parameters["number_of_task"] + 1):
         currently_tested_task = list_of_permutations[task]
         hypernetwork_weights = hypernetwork.forward(cond_id=task)
+
         accuracy = calculate_accuracy(
             currently_tested_task,
             target_network,
@@ -167,6 +169,7 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
                 cooldown=0,
                 verbose=True,
             )
+    # TODO save entry point
     for iteration in range(parameters["number_of_iterations"]):
         current_batch = current_dataset_instance.next_train_batch(
             parameters["batch_size"]
@@ -275,6 +278,11 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             ):
                 print("Finishing the current epoch")
                 plateau_scheduler.step(accuracy)
+    # TODO save exit interval
+    # TODO if exit_interval in [initial point - eps, initial point + eps] pass
+    # TODO else save d_{L_1}(exit point - boundary)
+    # TODO save cross_entropy
+    # TODO save interval regulation
 
     if parameters["best_model_selection_method"] == "val_loss":
         return best_hypernetwork, best_target_network
@@ -335,7 +343,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters, use_chunks
             dataset_list_of_tasks,
             no_of_task,
         )
-        if no_of_task <= (parameters["number_of_tasks"] - 1):
+        hypernetwork.conditional_params[no_of_task].requires_grad_(False)
+        if no_of_task == (parameters["number_of_tasks"] - 1):
             write_pickle_file(
                 f'{parameters["saving_folder"]}/hnet{target_network.epsilon*10000}', hypernetwork.weights
             )
@@ -352,6 +361,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters, use_chunks
         )
         dataframe = dataframe.astype({"after_learning_of_task": "int", "tested_task": "int"})
         dataframe.to_csv(f'{parameters["saving_folder"]}/results_{parameters["name_suffix"]}.csv', sep=";")
+        # TODO save percentage of points outside the cube and (average, min, max) of outsiders
     return hypernetwork, target_network, dataframe
 
 
