@@ -264,118 +264,57 @@ def set_hyperparameters(dataset, grid_search=False, part=0):
     Returns a dictionary with necessary hyperparameters.
     """
     if dataset == "PermutedMNIST":
-        # us or paper
-        param_owner = 'paper'
-        if param_owner == 'us':
-            if grid_search:
-                hyperparams = {
-                    "embedding_sizes": [24],
-                    "learning_rates": [0.001],
-                    "batch_sizes": [128],
-                    "norm_regularizer_masking_opts": [True, False],
-                    "betas": [0.001, 0.0005, 0.005],
-                    "hypernetworks_hidden_layers": [[100, 100]],
-                    "sparsity_parameters": [0],
-                    "lambdas": [0.001, 0.0005],
-                    "best_model_selection_method": "val_loss",
-                    "saving_folder": "./Results/grid_search/permuted_mnist/",
-                    # not for optimization, just for multiple cases
-                    "seed": [1, 2, 3, 4, 5],
-                }
-
-            else:
-                # Best hyperparameters
-                hyperparams = {
-                    "seed": [1, 2, 3, 4, 5],
-                    "embedding_sizes": [24],
-                    "sparsity_parameters": [0],
-                    "learning_rates": [0.001],
-                    "batch_sizes": [128],
-                    "betas": [0.0005],
-                    "lambdas": [0.001],
-                    "norm_regularizer_masking_opts": [True],
-                    "hypernetworks_hidden_layers": [[100, 100]],
-                    "best_model_selection_method": "last_model",
-                    "saving_folder": "./Results/permuted_mnist_best_hyperparams/",
-                }
-
-            # Both in the grid search and individual runs
-            hyperparams["lr_scheduler"] = False
-            hyperparams["number_of_iterations"] = 5000
-            hyperparams["number_of_epochs"] = None
-            hyperparams["no_of_validation_samples"] = 5000
-            hyperparams["no_of_validation_samples_per_class"] = 500
-            hyperparams["target_hidden_layers"] = [1000, 1000]
-            hyperparams["target_network"] = "epsMLP"
-            hyperparams["resnet_number_of_layer_groups"] = None
-            hyperparams["resnet_widening_factor"] = None
-            hyperparams["optimizer"] = "adam"
-            hyperparams["chunk_size"] = 100
-            hyperparams["chunk_emb_size"] = 8
-            hyperparams["use_chunks"] = False
-            hyperparams["adaptive_sparsity"] = True
-            hyperparams["use_batch_norm"] = False
-            # Directly related to the MNIST dataset
-            hyperparams["padding"] = 2
-            hyperparams["shape"] = (28 + 2 * hyperparams["padding"]) ** 2
-            hyperparams["number_of_tasks"] = 10
-            hyperparams["augmentation"] = False
-        # paper
+        if grid_search:
+            hyperparams = {
+                "embedding_sizes": [16, 24, 48, 64, 128, 256],
+                "learning_rates": [0.0001, 0.001, 0.005, 0.01],
+                "batch_sizes": [32, 64, 128],
+                "norm_regularizer_masking_opts": [True, False], # not used
+                "betas": [0.001, 0.0005, 0.005],
+                "hypernetworks_hidden_layers": [[50], [100], [200], [50, 50], [100, 100], [200, 200], [50, 50, 50], [100, 100, 100], [200, 200, 200]],
+                "sparsity_parameters": [0], # not used
+                "lambdas": [0.001, 0.0005], # not used
+                "best_model_selection_method": "val_loss",
+                "saving_folder": "./Results/grid_search/permuted_mnist/",
+                "seed": [1, 2, 3, 4, 5],
+            }
         else:
-            if grid_search:
-                hyperparams = {
-                    "embedding_sizes": [24],
-                    "learning_rates": [0.001],
-                    "batch_sizes": [32],
-                    "norm_regularizer_masking_opts": [True, False],
-                    "betas": [0.001, 0.0005, 0.005, 0.0001, 0.01, 0.05],
-                    "hypernetworks_hidden_layers": [[100, 100]],
-                    "sparsity_parameters": [0],
-                    "lambdas": [0.001, 0.0005, 0.0001, 0.005, 0.01, 0.05],
-                    "best_model_selection_method": "val_loss",
-                    "saving_folder": "./Results/grid_search/permuted_mnist/",
-                    # not for optimization, just for multiple cases
-                    "seed": [1, 2, 3, 4, 5],
-                }
+            # Best hyperparameters
+            hyperparams = {
+                "seed": [1, 2, 3, 4, 5],
+                "embedding_sizes": [64],
+                "sparsity_parameters": [0], # not used
+                "learning_rates": [0.001],
+                "batch_sizes": [64],
+                "betas": [0.0005],
+                "lambdas": [0.001], # not used
+                "norm_regularizer_masking_opts": [True], # not used
+                "hypernetworks_hidden_layers": [[200, 200]],
+                "best_model_selection_method": "last_model",
+                "saving_folder": "./Results/permuted_mnist_best_hyperparams/",
+            }
 
-            else:
-                # Best hyperparameters
-                hyperparams = {
-                    "seed": [1, 2, 3, 4, 5],
-                    "embedding_sizes": [24],
-                    "sparsity_parameters": [0],
-                    "learning_rates": [0.001],
-                    "batch_sizes": [32],
-                    "betas": [0.0005],
-                    "lambdas": [0.001],
-                    "norm_regularizer_masking_opts": [True],
-                    "hypernetworks_hidden_layers": [[100,100]],
-                    "best_model_selection_method": "last_model",
-                    "saving_folder": "./Results/permuted_mnist_best_hyperparams/",
-                }
-
-            # Both in the grid search and individual runs
-            hyperparams["lr_scheduler"] = False
-            hyperparams["number_of_iterations"] = 10000
-            hyperparams["number_of_epochs"] = 10
-            hyperparams["no_of_validation_samples"] = 1000
-            hyperparams["no_of_validation_samples_per_class"] = 100
-            hyperparams["target_hidden_layers"] = [256,256, 10]
-            hyperparams["target_network"] = "epsMLP"
-            hyperparams["resnet_number_of_layer_groups"] = None
-            hyperparams["resnet_widening_factor"] = None
-            hyperparams["optimizer"] = "adam"
-            hyperparams["chunk_size"] = 100
-            hyperparams["chunk_emb_size"] = 8
-            hyperparams["use_chunks"] = False
-            hyperparams["adaptive_sparsity"] = True
-            hyperparams["use_batch_norm"] = False
-            # Directly related to the MNIST dataset
-            hyperparams["padding"] = 2
-            hyperparams["shape"] = (28 + 2 * hyperparams["padding"]) ** 2
-            hyperparams["number_of_tasks"] = 10
-            hyperparams["augmentation"] = False
-
+        # Both in the grid search and individual runs
+        hyperparams["lr_scheduler"] = False
+        hyperparams["number_of_iterations"] = 5000
+        hyperparams["number_of_epochs"] = None
+        hyperparams["no_of_validation_samples"] = 5000
+        hyperparams["no_of_validation_samples_per_class"] = 500
+        hyperparams["target_hidden_layers"] = [1000, 1000]
+        hyperparams["target_network"] = "epsMLP"
+        hyperparams["resnet_number_of_layer_groups"] = None
+        hyperparams["resnet_widening_factor"] = None
+        hyperparams["optimizer"] = "adam"
+        hyperparams["chunk_size"] = 100
+        hyperparams["chunk_emb_size"] = 8
+        hyperparams["use_chunks"] = False
+        hyperparams["adaptive_sparsity"] = True
+        hyperparams["use_batch_norm"] = False
+        # Directly related to the MNIST dataset
+        hyperparams["padding"] = 2
+        hyperparams["shape"] = (28 + 2 * hyperparams["padding"]) ** 2
+        hyperparams["number_of_tasks"] = 10
+        hyperparams["augmentation"] = False
     elif dataset == "CIFAR100":
         if grid_search:
             hyperparams = {
