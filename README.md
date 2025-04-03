@@ -17,35 +17,3 @@ The description of HyperMask is included in the [paper](https://arxiv.org/abs/23
 Also, to prepare experiments with <code>CIFAR100</code> according to the FeCAM scenario, one should set the variable <code>dataset</code> in <code>main.py</code> to <code>CIFAR100_FeCAM_setup</code> with <code>part = 6</code> to run training with a ResNet model or <code>part = 7</code> to train a ZenkeNet model.
 
 One can also easily perform hyperparameter optimization using a grid search technique. For this purpose, one should set the variable <code>create_grid_search</code> to <code>True</code> in <code>main.py</code> file and modify lists with hyperparameters for the selected dataset in <code>datasets.py</code> file.
-
-## CITATION
-
-If you use this library in your research project, please cite the following paper:
-
-```
-@misc{książek2023hypermask,  
-     title={HyperMask: Adaptive Hypernetwork-based Masks for Continual Learning},  
-     author={Kamil Książek and Przemysław Spurek},  
-     year={2023},  
-     eprint={2310.00113},  
-     archivePrefix={arXiv},  
-     primaryClass={cs.LG}  
-}
-```
-
-## LICENSE
-
-Copyright 2023 Institute of Theoretical and Applied Informatics, Polish Academy of Sciences (ITAI PAS) <https://www.iitis.pl> and Group of Machine Learning Research (GMUM), Faculty of Mathematics and Computer Science of Jagiellonian University <https://gmum.net/>.
-
-Authors:<ul>
-    <li> Kamil Książek (ITAI PAS, ORCID ID: 0000−0002−0201−6220),
-    <li> Przemysław Spurek (Jagiellonian University, ORCID ID: 0000-0003-0097-5521).
-</ul>
-
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-The HyperMask repository includes parts of the code that come or are based on external sources: [hypnettorch](https://github.com/chrhenning/hypnettorch/tree/master), [FeCAM](https://github.com/dipamgoswami/FeCAM/blob/main/FeCAM_vit_cifar100.py), [Tiny ImageNet preprocessing 1](https://github.com/DennisHanyuanXu/Tiny-ImageNet/blob/master/src/data_prep.py) and [Tiny ImageNet preprocessing 2](https://github.com/pytorch/vision/issues/6127#issuecomment-1555049003).
