@@ -6,7 +6,7 @@ from hypnettorch.data.special import permuted_mnist
 from hypnettorch.data.special.split_cifar import SplitCIFAR100Data
 from hypnettorch.data.special.split_mnist import get_split_mnist_handlers
 
-from DataUtils.TinyImageNet import TinyImageNet
+from DatasetHandlers.TinyImageNet import TinyImageNet
 
 def generate_random_permutations(
     shape_of_data_instance, number_of_permutations
