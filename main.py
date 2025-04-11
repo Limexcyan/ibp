@@ -342,7 +342,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
             },
         )
         dataframe = dataframe.astype({"after_learning_of_task": "int", "tested_task": "int"})
-        dataframe.to_csv(f'{parameters["saving_folder"]}/results_{parameters["name_suffix"]}.csv', sep=";")
+        # dataframe.to_csv(f'{parameters["saving_folder"]}/results_{parameters["name_suffix"]}.csv', sep=";")
+        dataframe.to_csv(f'{parameters["saving_folder"]}/results_{parameters["dataset"]}.csv', sep=";")
         # TODO save percentage of points outside the cube and (average, min, max) of outsiders
     return hypernetwork, target_network, dataframe
 
@@ -383,7 +384,8 @@ def main_running_experiments(path_to_datasets, parameters):
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
         f'{parameters["lambda"]};'
-        f"{np.mean(accuracies)};{np.std(accuracies)}"
+        f'{parameters["perturbation_epsilon"]};'
+        f"{np.mean(accuracies)};{np.std(accuracies)},"
     )
     append_row_to_file(
         f'{parameters["grid_search_folder"]}'
@@ -391,7 +393,8 @@ def main_running_experiments(path_to_datasets, parameters):
         row_with_results,
     )
 
-    load_path = f'{parameters["saving_folder"]}/results_{parameters["name_suffix"]}.csv'
+    # load_path = f'{parameters["saving_folder"]}/results_{parameters["name_suffix"]}.csv'
+    load_path = f'{parameters["saving_folder"]}/results_{parameters["dataset"]}.csv'
     plot_heatmap(load_path)
 
     return hypernetwork, target_network, dataframe
@@ -401,18 +404,20 @@ if __name__ == "__main__":
     dataset = "SplitMNIST"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'CIFAR100_FeCAM_setup'
 
+   
     create_grid_search = False
     if create_grid_search:
         summary_results_filename = "grid_search_results"
     else:
         summary_results_filename = "summary_results"
     hyperparameters = set_hyperparameters(dataset, grid_search=create_grid_search)
+
     header = (
         "dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;"
         "target_network;target_hidden_layers;"
         "layer_groups;widening;final_model;optimizer;"
         "hypernet_activation_function;learning_rate;batch_size;beta;"
-        "lambda;mean_accuracy;std_accuracy"
+        "lambda;mean_accuracy;std_accuracy;peturbated_epsilon"
     )
     append_row_to_file(f'{hyperparameters["saving_folder"]}{summary_results_filename}.csv', header)
 
@@ -425,6 +430,7 @@ if __name__ == "__main__":
             hyperparameters["lambdas"],
             hyperparameters["batch_sizes"],
             hyperparameters["seed"],
+            hyperparameters["perturbation_epsilons"]
         )
     ):
         embedding_size = elements[0]
@@ -434,6 +440,7 @@ if __name__ == "__main__":
         lambda_par = elements[4]
         batch_size = elements[5]
         seed = elements[6]
+        perturbation_epsilon = elements[7]
 
         parameters = {
             "input_shape": hyperparameters["shape"],
@@ -456,6 +463,7 @@ if __name__ == "__main__":
             "no_of_validation_samples_per_class": hyperparameters["no_of_validation_samples_per_class"],
             "embedding_size": embedding_size,
             "lambda": lambda_par,
+            "perturbation_epsilon": perturbation_epsilon,
             "optimizer": hyperparameters["optimizer"],
             "beta": beta,
             "padding": hyperparameters["padding"],

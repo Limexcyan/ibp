@@ -187,6 +187,7 @@ def set_hyperparameters(dataset, grid_search=False):
                     "learning_rates": [0.001],
                     "batch_sizes": [128],
                     "betas": [0.001, 0.0005, 0.005],
+                    "perturbation_epsilons": [0.01],
                     "hypernetworks_hidden_layers": [[100, 100]],
                     "lambdas": [0.001, 0.0005],
                     "best_model_selection_method": "val_loss",
@@ -203,6 +204,7 @@ def set_hyperparameters(dataset, grid_search=False):
                     "learning_rates": [0.001],
                     "batch_sizes": [128],
                     "betas": [0.0005],
+                    "perturbation_epsilons": [0.01],
                     "lambdas": [0.001],
                     "hypernetworks_hidden_layers": [[100, 100]],
                     "best_model_selection_method": "last_model",
@@ -234,6 +236,7 @@ def set_hyperparameters(dataset, grid_search=False):
                     "learning_rates": [0.001],
                     "batch_sizes": [32],
                     "betas": [0.001, 0.0005, 0.005, 0.0001, 0.01, 0.05],
+                    "perturbation_epsilons": [0.01],
                     "hypernetworks_hidden_layers": [[100, 100]],
                     "lambdas": [0.001, 0.0005, 0.0001, 0.005, 0.01, 0.05],
                     "best_model_selection_method": "val_loss",
@@ -249,6 +252,7 @@ def set_hyperparameters(dataset, grid_search=False):
                     "embedding_sizes": [24],
                     "learning_rates": [0.001],
                     "batch_sizes": [32],
+                    "perturbation_epsilons": [0.01],
                     "betas": [0.0005],
                     "lambdas": [0.001],
                     "hypernetworks_hidden_layers": [[100,100]],
@@ -284,6 +288,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "learning_rates": [0.001],
                 "batch_sizes": [32],
                 "hypernetworks_hidden_layers": [[100]],
+                "perturbation_epsilons": [0.01],
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
                 "optimizer": "adam",
@@ -307,6 +312,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "batch_sizes": [32],
                 "learning_rates": [0.001],
                 "hypernetworks_hidden_layers": [[100]],
+                "perturbation_epsilons": [0.01],
                 "use_batch_norm": True,
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
@@ -342,6 +348,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "learning_rates": [0.001],
                 "batch_sizes": [16],
                 "hypernetworks_hidden_layers": [[10, 10], [100]],
+                "perturbation_epsilons": [0.01],
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
                 "optimizer": "adam",
@@ -395,6 +402,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "batch_sizes": [128],
                 "betas": [0.001],
                 "hypernetworks_hidden_layers": [[25, 25]],
+                "perturbation_epsilons": [0.01],
                 "lambdas": [0.001],
                 # Seed is not for optimization but for ensuring multiple results
                 "seed": [1, 2, 3, 4, 5],
@@ -413,6 +421,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
                 "betas": [0.01],
+                "perturbation_epsilons": [0.01],
                 "lambdas": [0.001],
                 "hypernetworks_hidden_layers": [[75, 75]],
                 "augmentation": True,
@@ -433,67 +442,11 @@ def set_hyperparameters(dataset, grid_search=False):
         hyperparams["number_of_tasks"] = 5
         hyperparams["use_batch_norm"] = False
         hyperparams["padding"] = None
-
-    elif dataset == "CIFAR100_FeCAM_setup":
-        if grid_search:
-            hyperparams = {
-                "seed": [1],
-                "betas": [0.1],
-                "lambdas": [1],
-                "batch_sizes": [32],
-                "hypernetworks_hidden_layers": [[100]],
-                "use_batch_norm": True,
-                "resnet_number_of_layer_groups": 3,
-                "resnet_widening_factor": 2,
-                "number_of_epochs": 200,
-                "target_network": "ResNet",
-                "optimizer": "adam",
-                "augmentation": True,
-            }
-           
-            hyperparams[
-                "saving_folder"
-            ] = f"./Results/CIFAR_100_FeCAM_setup/"
-        else:
-            # Best hyperparameters for ResNet
-            hyperparams = {
-                "seed": [1, 2, 3, 4, 5],
-                "embedding_sizes": [48],
-                "betas": [0.01],
-                "lambdas": [1],
-                "batch_sizes": [32],
-                "learning_rates": [0.0001],
-                "hypernetworks_hidden_layers": [[200]],
-                "use_batch_norm": True,
-                "resnet_number_of_layer_groups": 3,
-                "resnet_widening_factor": 2,
-                "number_of_epochs": 200,
-                "target_network": "ResNet",
-                "optimizer": "adam",
-                "augmentation": True,
-            }
-            
-            hyperparams[
-                "saving_folder"
-            ] = f"./Results/CIFAR_100_FeCAM/"
-        hyperparams["lr_scheduler"] = True
-        hyperparams["number_of_iterations"] = None
-        hyperparams["no_of_validation_samples_per_class"] = 50
-        if hyperparams["target_network"] in ["ResNet", "ResNetF", "ZenkeNet"]:
-            hyperparams["shape"] = 32
-            hyperparams["target_hidden_layers"] = None
-        elif hyperparams["target_network"] == "MLP":
-            hyperparams["shape"] = 3072
-            hyperparams["target_hidden_layers"] = [1000, 1000]
-        hyperparams["padding"] = None
-        hyperparams["best_model_selection_method"] = "val_loss"
-
     else:
         raise ValueError("This dataset is not implemented!")
 
     # General hyperparameters
     hyperparams["activation_function"] = torch.nn.ReLU()
-    hyperparams["norm"] = 1  # L1 norm
     hyperparams["use_bias"] = True
     hyperparams["save_consecutive_masks"] = False
     hyperparams["device"] = "cuda" if torch.cuda.is_available() else "cpu"
