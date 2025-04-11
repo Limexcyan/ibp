@@ -10,14 +10,14 @@ import os
 import numpy as np
 import time
 import glob
-import torch
 import urllib.request
 from zipfile import ZipFile
-from hypnettorch.data.dataset import Dataset
-import torchvision.transforms as transforms
 from skimage import io
 from skimage.color import gray2rgb
 
+import torch
+from hypnettorch.data.dataset import Dataset
+import torchvision.transforms as transforms
 
 class TinyImageNet(Dataset):
     _DOWNLOAD_PATH = "http://cs231n.stanford.edu/"

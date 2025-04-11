@@ -2,34 +2,28 @@ from datasets import (
     set_hyperparameters,
     prepare_permuted_mnist_tasks,
     prepare_split_cifar100_tasks,
-    prepare_split_cifar100_tasks_aka_FeCAM,
     prepare_split_mnist_tasks,
 )
 from main import (
-    apply_mask_to_weights_of_network,
     calculate_accuracy,
-    get_number_of_batch_normalization_layer,
     load_pickle_file,
-    prepare_network_sparsity,
     set_seed,
 )
-from hypnettorch.mnets import MLP
+from IntervalNets.IntervalMLP import IntervalMLP
+
 from hypnettorch.hnets import HMLP
-from hypnettorch.mnets.resnet import ResNet
-from ResNetF import ResNetF
-from MLP_F import MLPFeCAM
-from ZenkeNet64 import ZenkeNet
+import torch
+
 from copy import deepcopy
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
-import torch
 from numpy.testing import assert_almost_equal
 from collections import defaultdict
-from sklearn.manifold import TSNE
-from IntervalNets.IntervalMLP import IntervalMLP
+
+
 
 
 def load_dataset(dataset, path_to_datasets, hyperparameters):
@@ -69,62 +63,11 @@ def load_dataset(dataset, path_to_datasets, hyperparameters):
 
 def prepare_target_network(hyperparameters, output_shape):
     if hyperparameters["target_network"] == "MLP":
-        target_network = MLP(
+        target_network = IntervalMLP(
             n_in=hyperparameters["shape"],
             n_out=output_shape,
             hidden_layers=hyperparameters["target_hidden_layers"],
             use_bias=hyperparameters["use_bias"],
-            no_weights=False,
-        ).to(hyperparameters["device"])
-    elif hyperparameters["target_network"] == "IntervalMLP":
-        target_network = MLP(
-            n_in=hyperparameters["shape"],
-            n_out=output_shape,
-            hidden_layers=hyperparameters["target_hidden_layers"],
-            use_bias=hyperparameters["use_bias"],
-            no_weights=False,
-        ).to(hyperparameters["device"])
-    elif hyperparameters["target_network"] == "MLP_FeCAM":
-        target_network = MLPFeCAM(
-            n_in=hyperparameters["shape"],
-            n_out=output_shape,
-            hidden_layers=hyperparameters["target_hidden_layers"],
-            use_bias=hyperparameters["use_bias"],
-            no_weights=False,
-        ).to(hyperparameters["device"])
-    elif hyperparameters["target_network"] == "ResNet":
-        target_network = ResNet(
-            in_shape=(hyperparameters["shape"], hyperparameters["shape"], 3),
-            num_classes=output_shape,
-            use_bias=hyperparameters["use_bias"],
-            n=hyperparameters["resnet_number_of_layer_groups"],
-            k=hyperparameters["resnet_widening_factor"],
-            no_weights=False,
-            use_batch_norm=hyperparameters["use_batch_norm"],
-            bn_track_stats=False,
-        ).to(hyperparameters["device"])
-    elif hyperparameters["target_network"] == "ResNetF":
-        target_network = ResNetF(
-            in_shape=(hyperparameters["shape"], hyperparameters["shape"], 3),
-            num_classes=output_shape,
-            use_bias=hyperparameters["use_bias"],
-            n=hyperparameters["resnet_number_of_layer_groups"],
-            k=hyperparameters["resnet_widening_factor"],
-            no_weights=False,
-            use_batch_norm=hyperparameters["use_batch_norm"],
-            bn_track_stats=False,
-        ).to(hyperparameters["device"])
-    elif hyperparameters["target_network"] == "ZenkeNet":
-        if hyperparameters["dataset"] in ["CIFAR100", "CIFAR100_FeCAM_setup"]:
-            architecture = "cifar"
-        elif hyperparameters["dataset"] == "TinyImageNet":
-            architecture = "tiny"
-        else:
-            raise ValueError("This dataset is currently not implemented!")
-        target_network = ZenkeNet(
-            in_shape=(hyperparameters["shape"], hyperparameters["shape"], 3),
-            num_classes=output_shape,
-            arch=architecture,
             no_weights=False,
         ).to(hyperparameters["device"])
     else:
@@ -195,26 +138,22 @@ def prepare_and_load_weights_for_models(
     # Build target network
     target_network = prepare_target_network(hyperparameters, output_shape)
     # Build hypernetwork
-    no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
-        target_network
-    )
-    if not hyperparameters["use_chunks"]:
-        hypernetwork = HMLP(
-            target_network.param_shapes[no_of_batch_norm_layers:],
-            uncond_in_size=0,
-            cond_in_size=hyperparameters["embedding_sizes"][0],
-            activation_fn=hyperparameters["activation_function"],
-            layers=hyperparameters["hypernetworks_hidden_layers"][0],
-            num_cond_embs=hyperparameters["number_of_tasks"],
-        ).to(hyperparameters["device"])
-    else:
-        raise NotImplementedError
+   
+    hypernetwork = HMLP(
+        target_network.param_shapes,
+        uncond_in_size=0,
+        cond_in_size=hyperparameters["embedding_sizes"][0],
+        activation_fn=hyperparameters["activation_function"],
+        layers=hyperparameters["hypernetworks_hidden_layers"][0],
+        num_cond_embs=hyperparameters["number_of_tasks"],
+    ).to(hyperparameters["device"])
+  
     # Load weights
     hnet_weights = load_pickle_file(
         f"{path_to_model}hypernetwork_"
         f'after_{hyperparameters["number_of_tasks"] - 1}_task.pt'
     )
-    target_weights_before_masking = load_pickle_file(
+    target_weights = load_pickle_file(
         f"{path_to_model}target_network_after_"
         f'{hyperparameters["number_of_tasks"] - 1}_task.pt'
     )
@@ -222,7 +161,7 @@ def prepare_and_load_weights_for_models(
     # the loaded weights
     for prepared, loaded in zip(
         [hypernetwork, target_network],
-        [hnet_weights, target_weights_before_masking],
+        [hnet_weights, target_weights],
     ):
         no_of_loaded_weights = 0
         for item in loaded:
@@ -233,7 +172,7 @@ def prepare_and_load_weights_for_models(
         "hypernetwork": hypernetwork,
         "hypernetwork_weights": hnet_weights,
         "target_network": target_network,
-        "target_network_weights": target_weights_before_masking,
+        "target_network_weights": target_weights,
         "no_of_batch_norm_layers": no_of_batch_norm_layers,
         "hyperparameters": hyperparameters,
     }
@@ -247,19 +186,15 @@ def calculate_hypernetwork_output(
     no_of_task_for_evaluation,
     forward_transfer=False,
 ):
-    no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
-        target_network
-    )
-    if not hyperparameters["use_chunks"]:
-        hypernetwork = HMLP(
-            target_network.param_shapes[no_of_batch_norm_layers:],
-            uncond_in_size=0,
-            cond_in_size=hyperparameters["embedding_sizes"][0],
-            activation_fn=hyperparameters["activation_function"],
-            layers=hyperparameters["hypernetworks_hidden_layers"][0],
-            num_cond_embs=hyperparameters["number_of_tasks"],
-        ).to(hyperparameters["device"])
-        random_hypernetwork = deepcopy(hypernetwork)
+    hypernetwork = HMLP(
+        target_network.param_shapes,
+        uncond_in_size=0,
+        cond_in_size=hyperparameters["embedding_sizes"][0],
+        activation_fn=hyperparameters["activation_function"],
+        layers=hyperparameters["hypernetworks_hidden_layers"][0],
+        num_cond_embs=hyperparameters["number_of_tasks"],
+    ).to(hyperparameters["device"])
+    random_hypernetwork = deepcopy(hypernetwork)
     hnet_weights = load_pickle_file(
         f"{path_to_stored_networks}hypernetwork_"
         f"after_{no_of_task_for_loading}_task.pt"
@@ -336,24 +271,6 @@ def load_and_evaluate_networks(
             loading_task,
             evaluation_task,
             forward_transfer=forward_transfer,
-        )
-
-        # Prepare sparsed mask and apply it to the target network
-        masks = prepare_network_sparsity(
-            hypernetwork_output, hyperparameters["sparsity_parameters"]
-        )
-        random_masks = prepare_network_sparsity(
-            random_hypernetwork_output, hyperparameters["sparsity_parameters"]
-        )
-        random_weights = apply_mask_to_weights_of_network(
-            random_model, random_masks
-        )
-        # Load and prepare target network
-        loaded_target_model = load_pickle_file(
-            f"{path_to_stored_networks}target_network_after_{loading_task}_task.pt"
-        )
-        target_weights = apply_mask_to_weights_of_network(
-            loaded_target_model, masks
         )
 
         # During testing a random network on the i-th task we have to compare
@@ -545,37 +462,29 @@ def get_network_logits_for_all_inputs_all_tasks(
 
     # Build target network
     target_network = prepare_target_network(hyperparameters, output_shape)
+
     # Build hypernetwork
-    no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
-        target_network
-    )
-    if not hyperparameters["use_chunks"]:
-        hypernetwork = HMLP(
-            target_network.param_shapes[no_of_batch_norm_layers:],
-            uncond_in_size=0,
-            cond_in_size=hyperparameters["embedding_sizes"][0],
-            activation_fn=hyperparameters["activation_function"],
-            layers=hyperparameters["hypernetworks_hidden_layers"][0],
-            num_cond_embs=hyperparameters["number_of_tasks"],
-        ).to(hyperparameters["device"])
+    hypernetwork = HMLP(
+        target_network.param_shapes,
+        uncond_in_size=0,
+        cond_in_size=hyperparameters["embedding_sizes"][0],
+        activation_fn=hyperparameters["activation_function"],
+        layers=hyperparameters["hypernetworks_hidden_layers"][0],
+        num_cond_embs=hyperparameters["number_of_tasks"],
+    ).to(hyperparameters["device"])
     hnet_weights = load_pickle_file(
         f"{path_to_model}hypernetwork_"
         f'after_{hyperparameters["number_of_tasks"] - 1}_task.pt'
     )
-    target_weights_without_masking = load_pickle_file(
+    target_weights = load_pickle_file(
         f'{path_to_model}target_network_after_{hyperparameters["number_of_tasks"] - 1}_task.pt'
     )
     for task in range(hyperparameters["number_of_tasks"]):
-        target_loaded_weights = deepcopy(target_weights_without_masking)
+        target_loaded_weights = deepcopy(target_weights)
         hypernetwork_output = hypernetwork.forward(
             cond_id=task, weights=hnet_weights
         )
-        masks = prepare_network_sparsity(
-            hypernetwork_output, hyperparameters["sparsity_parameters"]
-        )
-        target_masked_weights = apply_mask_to_weights_of_network(
-            target_loaded_weights, masks
-        )
+      
         currently_tested_task = dataset_tasks_list[task]
         target_network.eval()
         with torch.no_grad():
@@ -594,7 +503,7 @@ def get_network_logits_for_all_inputs_all_tasks(
             logits_masked = evaluate_target_network(
                 target_network,
                 test_input,
-                target_masked_weights,
+                target_loaded_weights,
                 target_network_type,
                 condition=task,
             )
@@ -628,7 +537,7 @@ def get_network_logits_for_all_inputs_all_tasks(
                         },
                         evaluation_dataset="test",
                     ).item(),
-                    (target_masked_weights, target_loaded_weights),
+                    (target_loaded_weights, target_loaded_weights),
                 )
             )
             print(f"task: {task}, accuracies: {accuracies}")
@@ -985,230 +894,4 @@ def test_calculate_transfers():
 
 
 if __name__ == "__main__":
-    test_calculate_transfers()
-    # Calculate forward and backward transfer
-    ###################################################################
-    # PermutedMNIST / SplitMNIST, HNET:
-    method = "HYPERMASK"  # 'HNET' or 'HYPERMASK'
-    dataset = "TinyImageNet_ZenkeNet"
-    if dataset == "PermutedMNIST":
-        prefix = "PMNIST"
-        number_of_runs = 5
-    elif dataset == "SplitMNIST":
-        prefix = "splitMNIST"
-        number_of_runs = 5
-    elif dataset == "PermutedMNIST100":
-        prefix = "P100MNIST"
-        number_of_runs = 3
-    elif dataset == "TinyImageNet_ResNet":
-        prefix = "Tiny_ResNet"
-        number_of_runs = 5
-    elif dataset == "TinyImageNet_ZenkeNet":
-        prefix = "Tiny_ZenkeNet"
-        number_of_runs = 5
-    path_to_transfer_calculations = "./transfer/"
-    forward = False
-    paths = []
-    for seed in range(1, number_of_runs + 1):
-        paths.append(
-            f"{path_to_transfer_calculations}{method}_seed_{seed}_{prefix}.csv"
-        )
-    FWTs, BWTs = calculate_FWT_BWT_different_files(paths, forward=forward)
-    ###################################################################
-
-    path_to_datasets = "./Data"
-    dataset = "PermutedMNIST"
-    path_to_stored_networks = "./"
-    for no_of_model in range(5):
-        path_for_single_model = f"{path_to_stored_networks}{no_of_model}/"
-        # Setup for PermutedMNIST/CIFAR_100
-        if dataset in ["PermutedMNIST", "CIFAR_100"]:
-            tasks_for_loading = [
-                0,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                0,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                9,
-                9,
-                9,
-                9,
-                9,
-                9,
-                9,
-                9,
-                9,
-                9,
-            ]
-            tasks_for_evaluation = [
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                9,
-                0,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                0,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                9,
-            ]
-        else:
-            raise NotImplementedError
-        results = load_and_evaluate_networks(
-            path_to_datasets,
-            path_for_single_model,
-            dataset,
-            tasks_for_loading,
-            tasks_for_evaluation,
-            seed=no_of_model + 1,
-        )
-        results.to_csv(
-            f"HYPERMASK_seed_{no_of_model + 1}_{dataset}.csv", sep=";"
-        )
-
-    ###################################################################
-    # Prepare results for the best setting
-    # Permuted MNIST, 10 tasks
-    no_of_models_for_loading = [0, 1, 2, 3, 4]
-    suffix = "results_mask_sparsity_0.csv"
-    dataset_name = "Permuted MNIST (10 tasks)"
-    # Split MNIST
-    no_of_models_for_loading = [0, 1, 2, 3, 4]
-    suffix = "results_mask_sparsity_30.csv"
-    dataset_name = "Split MNIST"
-    # Permuted MNIST, 100 tasks
-    no_of_models_for_loading = [0, 1, 2]
-    suffix = "results_mask_sparsity_0.csv"
-    dataset_name = "Permuted MNIST (100 tasks)"
-    # CIFAR, 10 tasks, ResNet
-    no_of_models_for_loading = [0, 1, 2, 3, 4]
-    suffix = "results_mask_sparsity_0.csv"
-    dataset_name = "CIFAR-100 (ResNet)"
-    # CIFAR, 10 tasks, ZenkeNet
-    no_of_models_for_loading = [0, 1, 2, 3, 4]
-    suffix = "results_mask_sparsity_0.csv"
-    dataset_name = "CIFAR-100 (ZenkeNet)"
-    plot_accuracy_one_setting(
-        path_to_stored_networks,
-        no_of_models_for_loading,
-        suffix,
-        dataset_name,
-        folder="./Plots/",
-    )
-    # TinyImageNet, 40 tasks, ResNet
-    no_of_models_for_loading = [0, 1, 2, 3, 4]
-    suffix = "results_mask_sparsity_0.csv"
-    dataset_name = "Tiny ImageNet (ResNet)"
-    legend = True
-    # TinyImageNet, 40 tasks, ZenkeNet
-    no_of_models_for_loading = [0, 1, 2, 3, 4]
-    suffix = "results_mask_sparsity_50.csv"
-    dataset_name = "Tiny ImageNet (ZenkeNet)"
-    legend = True
-    plot_single_model_accuracy_one_setting(
-        path_to_stored_networks,
-        no_of_models_for_loading,
-        suffix,
-        dataset_name,
-        folder="./Plots/",
-        legend=legend,
-    )
-    ###################################################################
-    # Prepare tSNE plots
-    datasets = [
-        "PermutedMNIST",
-        "SplitMNIST",
-    ]  # 'PermutedMNIST' or 'SplitMNIST'
-    # datasets = ['SplitMNIST']
-    for dataset in datasets:
-        path_to_datasets = "./Data"
-        if dataset == "PermutedMNIST":
-            number_of_model = 4
-            seed = 5
-        elif dataset == "SplitMNIST":
-            number_of_model = 1
-            seed = 2
-        sanity_check = True
-
-        (
-            features_masked,
-            features_pure,
-            gt_class_masked,
-            gt_class_pure,
-            gt_tasks,
-        ) = get_network_logits_for_all_inputs_all_tasks(
-            path_to_stored_networks,
-            dataset,
-            path_to_datasets,
-            number_of_model,
-            seed,
-            sanity_check=sanity_check,
-        )
-
-        set_seed(seed)
-        X_embedded_masked = TSNE(
-            n_components=2, random_state=seed
-        ).fit_transform(features_masked)
-        X_embedded_pure = TSNE(n_components=2, random_state=seed).fit_transform(
-            features_pure
-        )
-        title_masked = "t-SNE result for the masked target model"
-        title_pure = (
-            "t-SNE result for the pure target model (without hypernetwork)"
-        )
-        for divide_by_class in [True, False]:
-            if divide_by_class:
-                gt_for_masked_part = gt_class_masked
-                gt_for_pured_part = gt_class_pure
-                label = "class"
-            else:
-                gt_for_masked_part = gt_tasks + 1
-                gt_for_pured_part = gt_tasks + 1
-                label = "task"
-            prepare_tSNE_plot(
-                X_embedded_masked,
-                gt_for_masked_part,
-                f"tSNE_masked_{dataset}_{number_of_model}_divide_by_{label}",
-                dataset,
-                label=label,
-                title=title_masked,
-            )
-            prepare_tSNE_plot(
-                X_embedded_pure,
-                gt_for_pured_part,
-                f"tSNE_pure_{dataset}_{number_of_model}_divide_by_{label}",
-                dataset,
-                label=label,
-                title=title_pure,
-            )
+   pass

@@ -1,20 +1,24 @@
 import os
 import random
-import torch
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import torch.optim as optim
-from IntervalNets.IntervalMLP import IntervalMLP
-from hypnettorch.hnets import HMLP
-import hypnettorch.utils.hnet_regularizer as hreg
-from torch import nn
 from datetime import datetime
 from itertools import product
 from copy import deepcopy
 from retry import retry
+
+import torch
+import torch.optim as optim
+from torch import nn
+from hypnettorch.hnets import HMLP
+import hypnettorch.utils.hnet_regularizer as hreg
+
+
+from IntervalNets.IntervalMLP import IntervalMLP
 from datasets import set_hyperparameters, prepare_permuted_mnist_tasks, prepare_split_mnist_tasks
+
 
 def set_seed(value):
     random.seed(value)
@@ -374,12 +378,11 @@ def main_running_experiments(path_to_datasets, parameters):
         f'{str(parameters["target_hidden_layers"]).replace(" ", "")};'
         f'{parameters["resnet_number_of_layer_groups"]};'
         f'{parameters["resnet_widening_factor"]};'
-        f'{parameters["norm_regularizer_masking"]};'
         f'{parameters["best_model_selection_method"]};'
         f'{parameters["optimizer"]};'
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
-        f'{parameters["norm"]};{parameters["lambda"]};'
+        f'{parameters["lambda"]};'
         f"{np.mean(accuracies)};{np.std(accuracies)}"
     )
     append_row_to_file(
@@ -409,7 +412,7 @@ if __name__ == "__main__":
         "target_network;target_hidden_layers;"
         "layer_groups;widening;final_model;optimizer;"
         "hypernet_activation_function;learning_rate;batch_size;beta;"
-        "norm;lambda;mean_accuracy;std_accuracy"
+        "lambda;mean_accuracy;std_accuracy"
     )
     append_row_to_file(f'{hyperparameters["saving_folder"]}{summary_results_filename}.csv', header)
 

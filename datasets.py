@@ -1,9 +1,11 @@
 import os
 import numpy as np
+
 import torch
 from hypnettorch.data.special import permuted_mnist
 from hypnettorch.data.special.split_cifar import SplitCIFAR100Data
 from hypnettorch.data.special.split_mnist import get_split_mnist_handlers
+
 from DataUtils.TinyImageNet import TinyImageNet
 
 def generate_random_permutations(
@@ -202,7 +204,6 @@ def set_hyperparameters(dataset, grid_search=False):
                     "batch_sizes": [128],
                     "betas": [0.0005],
                     "lambdas": [0.001],
-                    "norm_regularizer_masking_opts": [True],
                     "hypernetworks_hidden_layers": [[100, 100]],
                     "best_model_selection_method": "last_model",
                     "saving_folder": "./Results/permuted_mnist_best_hyperparams/",
@@ -392,14 +393,13 @@ def set_hyperparameters(dataset, grid_search=False):
             hyperparams = {
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
-                "norm_regularizer_masking_opts": [False],
                 "betas": [0.001],
                 "hypernetworks_hidden_layers": [[25, 25]],
                 "lambdas": [0.001],
                 # Seed is not for optimization but for ensuring multiple results
                 "seed": [1, 2, 3, 4, 5],
                 "best_model_selection_method": "val_loss",
-                "embedding_sizes": [128],
+                "embedding_sizes": [64],
                 "augmentation": True,
             }
 
@@ -414,7 +414,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "batch_sizes": [128],
                 "betas": [0.01],
                 "lambdas": [0.001],
-                "norm_regularizer_masking_opts": [False],
                 "hypernetworks_hidden_layers": [[75, 75]],
                 "augmentation": True,
                 "best_model_selection_method": "val_loss",
@@ -442,7 +441,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "betas": [0.1],
                 "lambdas": [1],
                 "batch_sizes": [32],
-                "norm_regularizer_masking_opts": [False],
                 "hypernetworks_hidden_layers": [[100]],
                 "use_batch_norm": True,
                 "resnet_number_of_layer_groups": 3,

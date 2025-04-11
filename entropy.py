@@ -1,9 +1,10 @@
 import os
-import torch
+from copy import deepcopy
 import pandas as pd
 import numpy as np
+
 import torch.nn.functional as F
-from copy import deepcopy
+import torch
 
 from evaluation import (
     prepare_and_load_weights_for_models,

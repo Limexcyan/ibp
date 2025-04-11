@@ -1,14 +1,16 @@
 import os
 import random
-import torch
 import numpy as np
 import pandas as pd
-from IntervalNets.IntervalMLP import IntervalMLP
-from hypnettorch.hnets import HMLP
 from copy import deepcopy
-from datasets import set_hyperparameters, prepare_permuted_mnist_tasks, prepare_split_mnist_tasks
+
+import torch
+from hypnettorch.hnets import HMLP
 from torchattacks.attacks.fgsm import FGSM
 from torchattacks import PGD, AutoAttack
+
+from IntervalNets.IntervalMLP import IntervalMLP
+from datasets import set_hyperparameters, prepare_permuted_mnist_tasks, prepare_split_mnist_tasks
 
 init_epsilon = 0.01
 
@@ -28,22 +30,21 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
     target_network = deepcopy(target_network)
     target_network.eval()
     # with torch.no_grad():
-    if 1==1:
-        if evaluation_dataset == "validation":
-            input_data = data.get_val_inputs()
-            output_data = data.get_val_outputs()
-        elif evaluation_dataset == "test":
-            input_data = data.get_test_inputs()
-            output_data = data.get_test_outputs()
-        elif evaluation_dataset == "train":
-            input_data = data.get_train_inputs()
-            output_data = data.get_train_outputs()
+    if evaluation_dataset == "validation":
+        input_data = data.get_val_inputs()
+        output_data = data.get_val_outputs()
+    elif evaluation_dataset == "test":
+        input_data = data.get_test_inputs()
+        output_data = data.get_test_outputs()
+    elif evaluation_dataset == "train":
+        input_data = data.get_train_inputs()
+        output_data = data.get_train_outputs()
 
-        data_input = data.input_to_torch_tensor(input_data, parameters["device"], mode="inference")
-        data_output = data.output_to_torch_tensor(output_data, parameters["device"], mode="inference")
+    data_input = data.input_to_torch_tensor(input_data, parameters["device"], mode="inference")
+    data_output = data.output_to_torch_tensor(output_data, parameters["device"], mode="inference")
 
-        data_input.requires_grad = True
-        gt_classes = data_output.max(dim=1)[1]
+    data_input.requires_grad = True
+    gt_classes = data_output.max(dim=1)[1]
 
     logits, _ = target_network.forward(data_input, weights=weights)
     predictions = logits.max(dim=1)[1]
@@ -76,7 +77,7 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
     return perturbed_acc
 
 
-def main_running_experiments(path_to_datasets, parameters, hypernetwork_model, epsilon, attack=None, use_chunks=False):
+def main_running_experiments(path_to_datasets, parameters, hypernetwork_model, epsilon, attack=None):
     if parameters["dataset"] == "PermutedMNIST":
         dataset_list_of_tasks = prepare_permuted_mnist_tasks(
             path_to_datasets,
