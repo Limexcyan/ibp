@@ -3,7 +3,7 @@ import torch.nn as nn
 from hypnettorch.mnets.mnet_interface import MainNetInterface
 from hypnettorch.utils.torch_utils import init_params
 
-class epsMLP(nn.Module, MainNetInterface):
+class IntervalMLP(nn.Module, MainNetInterface):
     def __init__(
         self,
         n_in=1,
@@ -41,7 +41,7 @@ class epsMLP(nn.Module, MainNetInterface):
         )
 
         ### Compute shapes of linear layers.
-        linear_shapes = epsMLP.weight_shapes(
+        linear_shapes = IntervalMLP.weight_shapes(
             n_in=n_in,
             n_out=n_out,
             hidden_layers=hidden_layers,

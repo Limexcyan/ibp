@@ -11,7 +11,7 @@ from hypnettorch.mnets import MLP
 from hypnettorch.mnets.resnet import ResNet
 from scipy.special.cython_special import eval_sh_legendre
 
-from epsMLP import epsMLP
+from IntervalNets.IntervalMLP import IntervalMLP
 import attacks
 import metrics
 

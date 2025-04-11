@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from torch.nn.functional import cross_entropy
 
 
 def fgsm_attack(image, data_grad, ksi=20/255):

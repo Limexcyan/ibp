@@ -29,7 +29,7 @@ import torch
 from numpy.testing import assert_almost_equal
 from collections import defaultdict
 from sklearn.manifold import TSNE
-from epsMLP import epsMLP
+from IntervalNets.IntervalMLP import IntervalMLP
 
 
 def load_dataset(dataset, path_to_datasets, hyperparameters):
@@ -76,7 +76,7 @@ def prepare_target_network(hyperparameters, output_shape):
             use_bias=hyperparameters["use_bias"],
             no_weights=False,
         ).to(hyperparameters["device"])
-    elif hyperparameters["target_network"] == "epsMLP":
+    elif hyperparameters["target_network"] == "IntervalMLP":
         target_network = MLP(
             n_in=hyperparameters["shape"],
             n_out=output_shape,

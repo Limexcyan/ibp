@@ -8,14 +8,6 @@ from copy import deepcopy
 from evaluation import (
     prepare_and_load_weights_for_models,
 )
-from FeCAM import (
-    extract_test_set_from_all_tasks,
-    extract_test_set_from_single_task,
-    translate_output_CIFAR_classes,
-    get_target_network_representation,
-    evaluate_hypermask_with_selected_embedding,
-    translate_output_MNIST_classes,
-)
 
 
 def get_task_and_class_prediction_based_on_logits(

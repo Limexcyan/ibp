@@ -6,10 +6,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch.optim as optim
-from hypnettorch.mnets import MLP
-from epsMLP import epsMLP
+from IntervalNets.IntervalMLP import IntervalMLP
 from hypnettorch.hnets import HMLP
-from hypnettorch.hnets.chunked_mlp_hnet import ChunkedHMLP
 import hypnettorch.utils.hnet_regularizer as hreg
 from torch import nn
 from datetime import datetime
@@ -17,7 +15,6 @@ from itertools import product
 from copy import deepcopy
 from retry import retry
 from datasets import set_hyperparameters, prepare_permuted_mnist_tasks, prepare_split_mnist_tasks
-from torchattacks import PGD, FGSM, AutoAttack
 
 def set_seed(value):
     random.seed(value)
@@ -61,31 +58,30 @@ def calculate_number_of_iterations(number_of_samples, batch_size, number_of_epoc
 def calculate_accuracy(data, target_network, weights, parameters, evaluation_dataset):
     target_network = deepcopy(target_network)
     target_network.eval()
-    # with torch.no_grad():
-    if 1:
-        if evaluation_dataset == "validation":
-            input_data = data.get_val_inputs()
-            output_data = data.get_val_outputs()
-        elif evaluation_dataset == "test":
-            input_data = data.get_test_inputs()
-            output_data = data.get_test_outputs()
+  
+    if evaluation_dataset == "validation":
+        input_data = data.get_val_inputs()
+        output_data = data.get_val_outputs()
+    elif evaluation_dataset == "test":
+        input_data = data.get_test_inputs()
+        output_data = data.get_test_outputs()
 
-        test_input = data.input_to_torch_tensor(input_data, parameters["device"], mode="inference")
-        test_output = data.output_to_torch_tensor(output_data, parameters["device"], mode="inference")
+    test_input = data.input_to_torch_tensor(input_data, parameters["device"], mode="inference")
+    test_output = data.output_to_torch_tensor(output_data, parameters["device"], mode="inference")
 
-        test_input.requires_grad = True
-        gt_classes = test_output.max(dim=1)[1]
+    test_input.requires_grad = True
+    gt_classes = test_output.max(dim=1)[1]
 
-        if parameters["use_batch_norm_memory"]:
-            logits = target_network.forward(test_input, weights=weights, condition=parameters["number_of_task"])
-        else:
-            logits = target_network.forward(test_input, weights=weights)
-        if len(logits) == 2:
-            logits, _ = logits
-        predictions = logits.max(dim=1)[1]
+    if parameters["use_batch_norm_memory"]:
+        logits = target_network.forward(test_input, weights=weights, condition=parameters["number_of_task"])
+    else:
+        logits = target_network.forward(test_input, weights=weights)
+    if len(logits) == 2:
+        logits, _ = logits
+    predictions = logits.max(dim=1)[1]
 
-        accuracy = torch.sum(gt_classes == predictions).float() / gt_classes.numel() * 100.0
-        return accuracy
+    accuracy = torch.sum(gt_classes == predictions).float() / gt_classes.numel() * 100.0
+    return accuracy
 
 
 def evaluate_previous_tasks(hypernetwork, target_network, dataframe_results, list_of_permutations, parameters):
@@ -185,7 +181,7 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         optimizer.zero_grad()
         hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
 
-        if parameters["target_network"] == "epsMLP":
+        if parameters["target_network"] == "IntervalMLP":
             default_eps = target_network.epsilon
             total_iterations = parameters["number_of_iterations"]
             inv_total_iterations = 1 / total_iterations
@@ -290,18 +286,10 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         return hypernetwork, target_network
 
 
-def build_multiple_task_experiment(dataset_list_of_tasks, parameters, use_chunks=False):
+def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
     output_shape = list(dataset_list_of_tasks[0].get_train_outputs())[0].shape[0]
-    if parameters["target_network"] == "MLP":
-        target_network = MLP(
-            n_in=parameters["input_shape"],
-            n_out=output_shape,
-            hidden_layers=parameters["target_hidden_layers"],
-            use_bias=parameters["use_bias"],
-            no_weights=True,
-        ).to(parameters["device"])
-    elif parameters["target_network"] == "epsMLP":
-        target_network = epsMLP(
+    if parameters["target_network"] == "IntervalMLP":
+        target_network = IntervalMLP(
             n_in=parameters["input_shape"],
             n_out=output_shape,
             hidden_layers=parameters["target_hidden_layers"],
@@ -309,25 +297,15 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters, use_chunks
             no_weights=True,
             epsilon=epsilon_IBP,
         ).to(parameters["device"])
-    if not use_chunks:
-        hypernetwork = HMLP(
-            target_network.param_shapes,
-            uncond_in_size=0,
-            cond_in_size=parameters["embedding_size"],
-            activation_fn=parameters["activation_function"],
-            layers=parameters["hypernetwork_hidden_layers"],
-            num_cond_embs=parameters["number_of_tasks"],
-        ).to(parameters["device"])
-    else:
-        hypernetwork = ChunkedHMLP(
-            target_shapes=target_network.param_shapes,
-            chunk_size=parameters["chunk_size"],
-            chunk_emb_size=parameters["chunk_emb_size"],
-            cond_in_size=parameters["embedding_size"],
-            activation_fn=parameters["activation_function"],
-            layers=parameters["hypernetwork_hidden_layers"],
-            num_cond_embs=parameters["number_of_tasks"],
-        ).to(parameters["device"])
+
+    hypernetwork = HMLP(
+        target_network.param_shapes,
+        uncond_in_size=0,
+        cond_in_size=parameters["embedding_size"],
+        activation_fn=parameters["activation_function"],
+        layers=parameters["hypernetwork_hidden_layers"],
+        num_cond_embs=parameters["number_of_tasks"],
+    ).to(parameters["device"])
 
     criterion = nn.CrossEntropyLoss()
     dataframe = pd.DataFrame(columns=["after_learning_of_task", "tested_task", "accuracy"])
@@ -382,7 +360,7 @@ def main_running_experiments(path_to_datasets, parameters):
             number_of_tasks=parameters["number_of_tasks"],
         )
     hypernetwork, target_network, dataframe = build_multiple_task_experiment(
-        dataset_tasks_list, parameters, use_chunks=parameters["use_chunks"]
+        dataset_tasks_list, parameters
     )
     no_of_last_task = parameters["number_of_tasks"] - 1
     accuracies = dataframe.loc[dataframe["after_learning_of_task"] == no_of_last_task]["accuracy"].values
@@ -392,7 +370,6 @@ def main_running_experiments(path_to_datasets, parameters):
         f'{parameters["embedding_size"]};'
         f'{parameters["seed"]};'
         f'{str(parameters["hypernetwork_hidden_layers"]).replace(" ", "")};'
-        f'{parameters["use_chunks"]};{parameters["chunk_emb_size"]};'
         f'{parameters["target_network"]};'
         f'{str(parameters["target_hidden_layers"]).replace(" ", "")};'
         f'{parameters["resnet_number_of_layer_groups"]};'
@@ -402,7 +379,6 @@ def main_running_experiments(path_to_datasets, parameters):
         f'{parameters["optimizer"]};'
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
-        f'{parameters["beta"]};{parameters["sparsity_parameter"]};'
         f'{parameters["norm"]};{parameters["lambda"]};'
         f"{np.mean(accuracies)};{np.std(accuracies)}"
     )
@@ -421,19 +397,19 @@ if __name__ == "__main__":
     path_to_datasets = "./Data"
     dataset = "SplitMNIST"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'CIFAR100_FeCAM_setup'
-    part = 1
+
     create_grid_search = False
     if create_grid_search:
         summary_results_filename = "grid_search_results"
     else:
         summary_results_filename = "summary_results"
-    hyperparameters = set_hyperparameters(dataset, grid_search=create_grid_search, part=part)
+    hyperparameters = set_hyperparameters(dataset, grid_search=create_grid_search)
     header = (
         "dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;"
-        "use_chunks;chunk_emb_size;target_network;target_hidden_layers;"
-        "layer_groups;widening;norm_regularizer_masking;final_model;optimizer;"
+        "target_network;target_hidden_layers;"
+        "layer_groups;widening;final_model;optimizer;"
         "hypernet_activation_function;learning_rate;batch_size;beta;"
-        "sparsity;norm;lambda;mean_accuracy;std_accuracy"
+        "norm;lambda;mean_accuracy;std_accuracy"
     )
     append_row_to_file(f'{hyperparameters["saving_folder"]}{summary_results_filename}.csv', header)
 
@@ -443,10 +419,8 @@ if __name__ == "__main__":
             hyperparameters["learning_rates"],
             hyperparameters["betas"],
             hyperparameters["hypernetworks_hidden_layers"],
-            hyperparameters["sparsity_parameters"],
             hyperparameters["lambdas"],
             hyperparameters["batch_sizes"],
-            hyperparameters["norm_regularizer_masking_opts"],
             hyperparameters["seed"],
         )
     ):
@@ -454,11 +428,9 @@ if __name__ == "__main__":
         learning_rate = elements[1]
         beta = elements[2]
         hypernetwork_hidden_layers = elements[3]
-        sparsity_parameter = elements[4]
-        lambda_par = elements[5]
-        batch_size = elements[6]
-        norm_regularizer_masking = elements[7]
-        seed = elements[8]
+        lambda_par = elements[4]
+        batch_size = elements[5]
+        seed = elements[6]
 
         parameters = {
             "input_shape": hyperparameters["shape"],
@@ -468,16 +440,10 @@ if __name__ == "__main__":
             "seed": seed,
             "hypernetwork_hidden_layers": hypernetwork_hidden_layers,
             "activation_function": hyperparameters["activation_function"],
-            "norm_regularizer_masking": norm_regularizer_masking,
-            "use_chunks": hyperparameters["use_chunks"],
-            "chunk_size": hyperparameters["chunk_size"],
-            "chunk_emb_size": hyperparameters["chunk_emb_size"],
             "target_network": hyperparameters["target_network"],
             "target_hidden_layers": hyperparameters["target_hidden_layers"],
             "resnet_number_of_layer_groups": hyperparameters["resnet_number_of_layer_groups"],
             "resnet_widening_factor": hyperparameters["resnet_widening_factor"],
-            "adaptive_sparsity": hyperparameters["adaptive_sparsity"],
-            "sparsity_parameter": sparsity_parameter,
             "learning_rate": learning_rate,
             "best_model_selection_method": hyperparameters["best_model_selection_method"],
             "lr_scheduler": hyperparameters["lr_scheduler"],
@@ -486,7 +452,6 @@ if __name__ == "__main__":
             "number_of_iterations": hyperparameters["number_of_iterations"],
             "no_of_validation_samples_per_class": hyperparameters["no_of_validation_samples_per_class"],
             "embedding_size": embedding_size,
-            "norm": hyperparameters["norm"],
             "lambda": lambda_par,
             "optimizer": hyperparameters["optimizer"],
             "beta": beta,
@@ -496,7 +461,6 @@ if __name__ == "__main__":
             "device": hyperparameters["device"],
             "saving_folder": f'{hyperparameters["saving_folder"]}{no}/',
             "grid_search_folder": hyperparameters["saving_folder"],
-            "name_suffix": f"mask_sparsity_{sparsity_parameter}",
             "summary_results_filename": summary_results_filename,
         }
         if "no_of_validation_samples" in hyperparameters:

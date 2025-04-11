@@ -3,20 +3,10 @@ import random
 import torch
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import torch.optim as optim
-from hypnettorch.mnets import MLP
-from epsMLP import epsMLP
+from IntervalNets.IntervalMLP import IntervalMLP
 from hypnettorch.hnets import HMLP
-from hypnettorch.hnets.chunked_mlp_hnet import ChunkedHMLP
-from torch import nn
-from datetime import datetime
-from itertools import product
 from copy import deepcopy
-from retry import retry
 from datasets import set_hyperparameters, prepare_permuted_mnist_tasks, prepare_split_mnist_tasks
-from torch.hub import load_state_dict_from_url
 from torchattacks.attacks.fgsm import FGSM
 from torchattacks import PGD, AutoAttack
 
@@ -103,7 +93,7 @@ def main_running_experiments(path_to_datasets, parameters, hypernetwork_model, e
             number_of_tasks=parameters["number_of_tasks"],
         )
 
-    target_network = epsMLP(
+    target_network = IntervalMLP(
         n_in=parameters["input_shape"],
         n_out=list(dataset_list_of_tasks[0].get_train_outputs())[0].shape[0],
         hidden_layers=parameters["target_hidden_layers"],
@@ -111,25 +101,15 @@ def main_running_experiments(path_to_datasets, parameters, hypernetwork_model, e
         no_weights=True,
         epsilon=0.01,
     ).to(parameters["device"])
-    if not use_chunks:
-        hypernetwork = HMLP(
-            target_network.param_shapes,
-            uncond_in_size=0,
-            cond_in_size=parameters["embedding_sizes"],
-            activation_fn=parameters["activation_function"],
-            layers=parameters["hnet_hidden_layers"],
-            num_cond_embs=parameters["number_of_tasks"],
-        ).to(parameters["device"])
-    else:
-        hypernetwork = ChunkedHMLP(
-            target_shapes=target_network.param_shapes,
-            chunk_size=parameters["chunk_size"],
-            chunk_emb_size=parameters["chunk_emb_size"],
-            cond_in_size=parameters["embedding_sizes"],
-            activation_fn=parameters["activation_function"],
-            layers=parameters["hnet_hidden_layers"],
-            num_cond_embs=parameters["number_of_tasks"],
-        ).to(parameters["device"])
+
+    hypernetwork = HMLP(
+        target_network.param_shapes,
+        uncond_in_size=0,
+        cond_in_size=parameters["embedding_sizes"],
+        activation_fn=parameters["activation_function"],
+        layers=parameters["hnet_hidden_layers"],
+        num_cond_embs=parameters["number_of_tasks"],
+    ).to(parameters["device"])
 
     hnet_weights = load_pickle_file(hypernetwork_model)
     dataframe = pd.DataFrame(columns=["tested_task", "accuracy"])
