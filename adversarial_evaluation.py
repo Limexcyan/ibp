@@ -58,9 +58,7 @@ def calculate_accuracy(
         weights=weights)
     predictions = logits.max(dim=1)[1]
     attack_instance = 0
-    target_network.mode = 'test'
     if attack == 'None':
-        target_network.mode = None
         perturbed_acc = 100 * (torch.sum(gt_classes == predictions).float() / gt_classes.numel())
         return perturbed_acc
     else:
@@ -83,7 +81,6 @@ def calculate_accuracy(
     perturbed_pred = adv_logits.argmax(dim=1)
 
     perturbed_acc = 100 * (torch.sum(gt_classes == perturbed_pred).float() / gt_classes.numel())
-    target_network.mode = None
     return perturbed_acc
 
 

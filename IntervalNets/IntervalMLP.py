@@ -13,7 +13,6 @@ class IntervalMLP(nn.Module, MainNetInterface):
         use_bias=True,
         no_weights=False,
         out_fn=None,
-        mode=None
     ):
         # FIXME find a way using super to handle multiple inheritance.
         nn.Module.__init__(self)
@@ -29,8 +28,6 @@ class IntervalMLP(nn.Module, MainNetInterface):
         self._has_fc_out = True
         self._mask_fc_out = True
         self._has_linear_out = True
-
-        self.mode = mode
 
         self._param_shapes = []
         self._param_shapes_meta = []
@@ -114,10 +111,7 @@ class IntervalMLP(nn.Module, MainNetInterface):
                 hidden = (z_upper + z_lower) / 2
                 eps = (z_upper - z_lower) / 2
                 eps = eps.T
-        if self.mode == 'test':
-            return hidden
-        else:
-            return hidden, eps
+        return hidden, eps
 
     def distillation_targets(self):
         return None
