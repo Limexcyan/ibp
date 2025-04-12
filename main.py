@@ -8,6 +8,7 @@ from datetime import datetime
 from itertools import product
 from copy import deepcopy
 from retry import retry
+import time
 
 import torch
 import torch.optim as optim
@@ -210,6 +211,9 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         z_upper = prediction + eps_prediction.T
         z = torch.where((nn.functional.one_hot(gt_output, prediction.size(-1))).bool(), z_lower, z_upper)
 
+        # To print only
+        worst_case_error = (z.argmax(dim=1) != gt_output).float().sum().item()
+
         loss_spec = criterion(z, gt_output) # Worst-case loss
         loss_fit = criterion(prediction, gt_output) # Just cross-entropy loss
         if iteration <= total_iterations // 2:
@@ -269,7 +273,8 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             )
             print(
                 f"Task {current_no_of_task}, iteration: {iteration + 1},"
-                f" loss: {loss_current_task.item()}, validation accuracy: {accuracy}"
+                f" loss: {loss_current_task.item()}, validation accuracy: {accuracy},"
+                f" No incorrectly classified hypercubes: {worst_case_error}"
             )
             if parameters["best_model_selection_method"] == "val_loss":
 
@@ -347,7 +352,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
         )
         dataframe = dataframe.astype({"after_learning_of_task": "int", "tested_task": "int"})
         dataframe.to_csv(f'{parameters["saving_folder"]}/results_{parameters["dataset"]}.csv', sep=";")
-        # TODO save percentage of points outside the cube and (average, min, max) of outsiders
     return hypernetwork, target_network, dataframe
 
 
@@ -367,9 +371,16 @@ def main_running_experiments(path_to_datasets, parameters):
             use_augmentation=parameters["augmentation"],
             number_of_tasks=parameters["number_of_tasks"],
         )
+
+    # Measure time of the experiment
+    start_time = time.time()
+
     hypernetwork, target_network, dataframe = build_multiple_task_experiment(
         dataset_tasks_list, parameters
     )
+
+    elapsed_time = time.time() - start_time
+
     no_of_last_task = parameters["number_of_tasks"] - 1
     accuracies = dataframe.loc[dataframe["after_learning_of_task"] == no_of_last_task]["accuracy"].values
     row_with_results = (
@@ -388,7 +399,8 @@ def main_running_experiments(path_to_datasets, parameters):
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
         f'{parameters["lambda"]};'
         f'{parameters["perturbation_epsilon"]};'
-        f"{np.mean(accuracies)};{np.std(accuracies)},"
+        f"{np.mean(accuracies)};{np.std(accuracies)};"
+        f"{elapsed_time}"
     )
     append_row_to_file(
         f'{parameters["grid_search_folder"]}'
@@ -420,7 +432,7 @@ if __name__ == "__main__":
         "target_network;target_hidden_layers;"
         "layer_groups;widening;final_model;optimizer;"
         "hypernet_activation_function;learning_rate;batch_size;beta;"
-        "lambda;mean_accuracy;std_accuracy;peturbated_epsilon"
+        "lambda;mean_accuracy;std_accuracy;peturbated_epsilon;elapsed_time"
     )
     append_row_to_file(f'{hyperparameters["saving_folder"]}{summary_results_filename}.csv', header)
 
