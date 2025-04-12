@@ -13,7 +13,6 @@ class IntervalMLP(nn.Module, MainNetInterface):
         use_bias=True,
         no_weights=False,
         out_fn=None,
-        epsilon=0.01,
         mode=None
     ):
         # FIXME find a way using super to handle multiple inheritance.
@@ -31,7 +30,6 @@ class IntervalMLP(nn.Module, MainNetInterface):
         self._mask_fc_out = True
         self._has_linear_out = True
 
-        self.epsilon = epsilon
         self.mode = mode
 
         self._param_shapes = []
@@ -87,7 +85,7 @@ class IntervalMLP(nn.Module, MainNetInterface):
 
         self._is_properly_setup()
 
-    def forward(self, x, weights=None, distilled_params=None, condition=None):
+    def forward(self, x, epsilon, weights=None, distilled_params=None, condition=None):
         if weights is None:
            weights = self.weights
 
@@ -100,7 +98,7 @@ class IntervalMLP(nn.Module, MainNetInterface):
             else:
                 w_weights.append(p)
         hidden = x
-        eps = (self.epsilon * torch.ones_like(hidden)).T
+        eps = (epsilon * torch.ones_like(hidden)).T
         for l in range(len(w_weights)):
             W = w_weights[l]
             b = b_weights[l] if self.has_bias else None

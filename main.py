@@ -27,8 +27,6 @@ def set_seed(value):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-epsilon_IBP = 0.01
-
 def append_row_to_file(filename, elements):
     if not filename.endswith(".csv"):
         filename += ".csv"
@@ -77,11 +75,20 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
     gt_classes = test_output.max(dim=1)[1]
 
     if parameters["use_batch_norm_memory"]:
-        logits = target_network.forward(test_input, weights=weights, condition=parameters["number_of_task"])
+        logits = target_network.forward(
+            test_input, 
+            epsilon=parameters["perturbation_epsilon"],
+            weights=weights, 
+            condition=parameters["number_of_task"]
+            )
     else:
-        logits = target_network.forward(test_input, weights=weights)
-    if len(logits) == 2:
-        logits, _ = logits
+        logits = target_network.forward(
+            test_input, 
+            epsilon=parameters["perturbation_epsilon"],
+            weights=weights)
+
+    # We take into the consideration only the midpoint of a hypercube 
+    logits, _ = logits
     predictions = logits.max(dim=1)[1]
 
     accuracy = torch.sum(gt_classes == predictions).float() / gt_classes.numel() * 100.0
@@ -185,32 +192,33 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         optimizer.zero_grad()
         hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
 
-        if parameters["target_network"] == "IntervalMLP":
-            default_eps = target_network.epsilon
-            total_iterations = parameters["number_of_iterations"]
-            inv_total_iterations = 1 / total_iterations
-            if iteration <= int(total_iterations / 2):
-                target_network.epsilon = 2 * iteration * inv_total_iterations * default_eps
-
-            prediction, eps_prediction = target_network.forward(tensor_input, weights=hnet_weights)
-
-            z_lower = prediction - eps_prediction.T
-            z_upper = prediction + eps_prediction.T
-            z = torch.where((nn.functional.one_hot(gt_output, prediction.size(-1))).bool(), z_lower, z_upper)
-
-            loss_spec = criterion(z, gt_output)
-            loss_fit = criterion(prediction, gt_output)
-            if iteration <= int(total_iterations / 2):
-                kappa = 1 - (iteration * inv_total_iterations)
-            else:
-                kappa = 0.5
-
-            loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
-            target_network.epsilon = default_eps
+        base_eps = parameters["perturbation_epsilon"]
+        total_iterations = parameters["number_of_iterations"]
+        inv_total_iterations = 1 / total_iterations
+        if iteration <= total_iterations // 2:
+            perturbation_epsilon = 2 * iteration * inv_total_iterations * base_eps
         else:
-            prediction = target_network.forward(tensor_input, weights=hnet_weights)
-            loss_current_task = criterion(prediction, gt_output)
-            print(f' loss: {loss_current_task.item()}')
+            perturbation_epsilon = base_eps
+
+        prediction, eps_prediction = target_network.forward(
+            tensor_input,
+            epsilon=perturbation_epsilon, 
+            weights=hnet_weights
+        )
+
+        z_lower = prediction - eps_prediction.T
+        z_upper = prediction + eps_prediction.T
+        z = torch.where((nn.functional.one_hot(gt_output, prediction.size(-1))).bool(), z_lower, z_upper)
+
+        loss_spec = criterion(z, gt_output) # Worst-case loss
+        loss_fit = criterion(prediction, gt_output) # Just cross-entropy loss
+        if iteration <= total_iterations // 2:
+            kappa = 1 - (iteration * inv_total_iterations)
+        else:
+            kappa = 0.5
+
+        loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
+       
         loss_regularization = 0.0
         if current_no_of_task > 0:
             loss_regularization = hreg.calc_fix_target_reg(
@@ -255,6 +263,7 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
                     "device": parameters["device"],
                     "use_batch_norm_memory": use_batch_norm_memory,
                     "number_of_task": current_no_of_task,
+                    "perturbation_epsilon": perturbation_epsilon
                 },
                 evaluation_dataset="validation",
             )
@@ -263,11 +272,11 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
                 f" loss: {loss_current_task.item()}, validation accuracy: {accuracy}"
             )
             if parameters["best_model_selection_method"] == "val_loss":
-                if accuracy > best_val_accuracy:
+
+                # We need to ensure that the perturbation epsilon reached the maximum value
+                if accuracy > best_val_accuracy and perturbation_epsilon == parameters["perturbation_epsilon"]:
                     print('new best val acc')
-                    if target_network.epsilon != epsilon_IBP:
-                        print('Wrong model saved')
-                        pass
+                    
                     best_val_accuracy = accuracy
                     best_hypernetwork = deepcopy(hypernetwork)
                     best_target_network = deepcopy(target_network)
@@ -278,11 +287,6 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             ):
                 print("Finishing the current epoch")
                 plateau_scheduler.step(accuracy)
-    # TODO save exit interval
-    # TODO if exit_interval in [initial point - eps, initial point + eps] pass
-    # TODO else save d_{L_1}(exit point - boundary)
-    # TODO save cross_entropy
-    # TODO save interval regulation
 
     if parameters["best_model_selection_method"] == "val_loss":
         return best_hypernetwork, best_target_network
@@ -299,7 +303,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
             hidden_layers=parameters["target_hidden_layers"],
             use_bias=parameters["use_bias"],
             no_weights=True,
-            epsilon=epsilon_IBP,
         ).to(parameters["device"])
 
     hypernetwork = HMLP(
@@ -314,7 +317,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
     criterion = nn.CrossEntropyLoss()
     dataframe = pd.DataFrame(columns=["after_learning_of_task", "tested_task", "accuracy"])
 
-    use_batch_norm_memory = False
+    use_batch_norm_memory = parameters["use_batch_norm"]
     hypernetwork.train()
     for no_of_task in range(parameters["number_of_tasks"]):
         hypernetwork, target_network = train_single_task(
@@ -328,7 +331,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
         hypernetwork.conditional_params[no_of_task].requires_grad_(False)
         if no_of_task == (parameters["number_of_tasks"] - 1):
             write_pickle_file(
-                f'{parameters["saving_folder"]}/hnet{target_network.epsilon*10000}', hypernetwork.weights
+                f'{parameters["saving_folder"]}/hnet_{parameters["perturbation_epsilon"]}', hypernetwork.weights
             )
         dataframe = evaluate_previous_tasks(
             hypernetwork,
@@ -339,10 +342,10 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
                 "device": parameters["device"],
                 "use_batch_norm_memory": use_batch_norm_memory,
                 "number_of_task": no_of_task,
+                "perturbation_epsilon": parameters["perturbation_epsilon"]
             },
         )
         dataframe = dataframe.astype({"after_learning_of_task": "int", "tested_task": "int"})
-        # dataframe.to_csv(f'{parameters["saving_folder"]}/results_{parameters["name_suffix"]}.csv', sep=";")
         dataframe.to_csv(f'{parameters["saving_folder"]}/results_{parameters["dataset"]}.csv', sep=";")
         # TODO save percentage of points outside the cube and (average, min, max) of outsiders
     return hypernetwork, target_network, dataframe
@@ -393,7 +396,6 @@ def main_running_experiments(path_to_datasets, parameters):
         row_with_results,
     )
 
-    # load_path = f'{parameters["saving_folder"]}/results_{parameters["name_suffix"]}.csv'
     load_path = f'{parameters["saving_folder"]}/results_{parameters["dataset"]}.csv'
     plot_heatmap(load_path)
 
@@ -403,9 +405,10 @@ if __name__ == "__main__":
     path_to_datasets = "./Data"
     dataset = "SplitMNIST"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'CIFAR100_FeCAM_setup'
-
-   
     create_grid_search = False
+
+    TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
+
     if create_grid_search:
         summary_results_filename = "grid_search_results"
     else:
@@ -470,7 +473,7 @@ if __name__ == "__main__":
             "use_bias": hyperparameters["use_bias"],
             "use_batch_norm": hyperparameters["use_batch_norm"],
             "device": hyperparameters["device"],
-            "saving_folder": f'{hyperparameters["saving_folder"]}{no}/',
+            "saving_folder": f'{hyperparameters["saving_folder"]}/{TIMESTAMP}/{no}/',
             "grid_search_folder": hyperparameters["saving_folder"],
             "summary_results_filename": summary_results_filename,
         }
@@ -478,7 +481,7 @@ if __name__ == "__main__":
             parameters["no_of_validation_samples"] = hyperparameters["no_of_validation_samples"]
 
         os.makedirs(parameters["saving_folder"], exist_ok=True)
-        # save_parameters(parameters["saving_folder"], parameters, name=f'parameters_{parameters["name_suffix"]}.csv')
+
         if seed is not None:
             set_seed(seed)
 
