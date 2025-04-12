@@ -24,6 +24,9 @@ from numpy.testing import assert_almost_equal
 from collections import defaultdict
 
 
+#####
+### Attention: DEPRECATED!!!!
+#####
 
 
 def load_dataset(dataset, path_to_datasets, hyperparameters):
