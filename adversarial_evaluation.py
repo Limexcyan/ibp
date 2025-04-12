@@ -12,8 +12,6 @@ from torchattacks import PGD, AutoAttack
 from IntervalNets.IntervalMLP import IntervalMLP
 from datasets import set_hyperparameters, prepare_permuted_mnist_tasks, prepare_split_mnist_tasks
 
-init_epsilon = 0.01
-
 def set_seed(value):
     random.seed(value)
     np.random.seed(value)
@@ -25,7 +23,15 @@ def set_seed(value):
 def load_pickle_file(filename):
     return torch.load(filename, map_location=torch.device(parameters["device"]))
 
-def calculate_accuracy(data, target_network, weights, parameters, evaluation_dataset, attack=None, epsilon=0):
+def calculate_accuracy(
+        data, 
+        target_network, 
+        weights, 
+        parameters, 
+        evaluation_dataset,  
+        epsilon_attack,
+        perturbation_epsilon,
+        attack=None):
     attack = str(attack)
     target_network = deepcopy(target_network)
     target_network.eval()
@@ -46,7 +52,10 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
     data_input.requires_grad = True
     gt_classes = data_output.max(dim=1)[1]
 
-    logits, _ = target_network.forward(data_input, weights=weights)
+    logits, _ = target_network.forward(
+        data_input, 
+        epsilon=perturbation_epsilon,
+        weights=weights)
     predictions = logits.max(dim=1)[1]
     attack_instance = 0
     target_network.mode = 'test'
@@ -56,19 +65,20 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
         return perturbed_acc
     else:
         if attack == 'PGD':
-            attack_instance = PGD(target_network, eps=epsilon, alpha=1/255, steps=1, random_start=False)
+            attack_instance = PGD(target_network, eps=epsilon_attack, alpha=1/255, steps=1, random_start=False)
         if attack == 'FGSM':
-            print("????")
-            attack_instance = FGSM(target_network, eps=epsilon)
+            attack_instance = FGSM(target_network, eps=epsilon_attack)
         elif attack == 'AutoAttack':
-            attack_instance = AutoAttack(target_network, norm='Linf', eps=epsilon, version='standard', seed=None, verbose=False)
+            attack_instance = AutoAttack(target_network, norm='Linf', eps=epsilon_attack, version='standard', seed=None, verbose=False)
 
     print('evaluation dataset: ', evaluation_dataset)
     print('attack: ', attack)
-    print('atack epsilon', epsilon)
+    print('atack epsilon', epsilon_attack)
 
     adv_images = attack_instance(data_input, gt_classes)
-    adv_logits = target_network.forward(adv_images, weights=weights)
+    adv_logits = target_network.forward(adv_images, 
+                                        epsilon=0.0,
+                                        weights=weights)
 
     perturbed_pred = adv_logits.argmax(dim=1)
 
@@ -77,7 +87,12 @@ def calculate_accuracy(data, target_network, weights, parameters, evaluation_dat
     return perturbed_acc
 
 
-def main_running_experiments(path_to_datasets, parameters, hypernetwork_model, epsilon, attack=None):
+def main_running_experiments(
+        path_to_datasets, 
+        parameters, 
+        hypernetwork_model, 
+        epsilon_attack, 
+        attack=None):
     if parameters["dataset"] == "PermutedMNIST":
         dataset_list_of_tasks = prepare_permuted_mnist_tasks(
             path_to_datasets,
@@ -93,14 +108,15 @@ def main_running_experiments(path_to_datasets, parameters, hypernetwork_model, e
             use_augmentation=parameters["augmentation"],
             number_of_tasks=parameters["number_of_tasks"],
         )
-
+    
+    # TODO Change this code to include new architectures, not only IntervalMLP
     target_network = IntervalMLP(
         n_in=parameters["input_shape"],
         n_out=list(dataset_list_of_tasks[0].get_train_outputs())[0].shape[0],
         hidden_layers=parameters["target_hidden_layers"],
         use_bias=parameters["use_bias"],
         no_weights=True,
-        epsilon=0.01,
+        epsilon=parameters["perturbation_epsilon"],
     ).to(parameters["device"])
 
     hypernetwork = HMLP(
@@ -126,7 +142,7 @@ def main_running_experiments(path_to_datasets, parameters, hypernetwork_model, e
             parameters=parameters,
             evaluation_dataset='test',
             attack=attack,
-            epsilon=epsilon
+            epsilon=epsilon_attack
         )
         result = {
             "tested_task": task,
@@ -172,4 +188,4 @@ if __name__ == "__main__":
 
     hnet001_path = 'Results/split_mnist_test/1903 001b001/hnet100.0.pt'
 
-    main_running_experiments(path_to_datasets, parameters, hnet001_path, epsilon=init_epsilon, attack='FGSM')
+    main_running_experiments(path_to_datasets, parameters, hnet001_path, attack='FGSM')

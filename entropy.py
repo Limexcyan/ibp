@@ -176,8 +176,6 @@ def get_target_network_representation(
         target_weights = hypernetwork.forward(
             cond_id=task, 
             weights=hypernetwork_weights,
-            perturbated_eps=perturbated_eps,
-            return_extended_output=True
         )
 
         if target_network_type in ["ResNet", "AlexNet"]:
@@ -187,6 +185,7 @@ def get_target_network_representation(
         
         logits, _ = target_network.forward(
                                     input_data,
+                                    epsilon=perturbated_eps,
                                     weights=target_weights,
                                     condition=condition
                                 )
@@ -208,8 +207,7 @@ def extract_test_set_from_single_task(
     no_of_task: int
         Represents the number of the currently analyzed task.
     dataset: str
-        Defines the name of the dataset used: 'PermutedMNIST', 'SplitMNIST',
-        or 'CIFAR100_FeCAM_setup'.
+        Defines the name of the dataset used: 'PermutedMNIST', 'SplitMNIST'.
     device: str
         Defines whether CPU or GPU will be used.
     mode: str
@@ -236,10 +234,8 @@ def extract_test_set_from_single_task(
         output_data, device, mode="inference"
     )
     gt_classes = test_output.max(dim=1)[1]
-    if dataset in ["CIFAR100_FeCAM_setup", "CIFAR10"]:
-        # Currently there is an assumption that only setup with
-        # 5 tasks will be used for CIFAR100_FeCAM_setup
-        mode = "CIFAR100" if dataset == "CIFAR100_FeCAM_setup" else "CIFAR10"
+    if dataset in ["CIFAR10"]:
+        mode = dataset
         gt_classes = translate_output_CIFAR_classes(
             gt_classes, setup=5, task=no_of_task, mode=mode
         )
@@ -367,8 +363,8 @@ def get_task_and_class_prediction_based_on_logits(
 
         output_relative_class = target_output.argmax().item()
 
-        if dataset in ["CIFAR100_FeCAM_setup", "CIFAR10"]:
-            mode = "CIFAR100" if dataset == "CIFAR100_FeCAM_setup" else "CIFAR10"
+        if dataset in ["CIFAR10"]:
+            mode = dataset
             output_absolute_class = translate_output_CIFAR_classes(
                 [output_relative_class], setup, selected_task_id.item(), mode=mode
             )
