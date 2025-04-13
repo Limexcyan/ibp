@@ -18,7 +18,8 @@ import hypnettorch.utils.hnet_regularizer as hreg
 
 
 from IntervalNets.IntervalMLP import IntervalMLP
-from datasets import set_hyperparameters, prepare_permuted_mnist_tasks, prepare_split_mnist_tasks
+from IntervalNets.IntervalAlexNet import IntervalAlexNet
+from datasets import *
 
 
 def set_seed(value):
@@ -207,8 +208,8 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             weights=hnet_weights
         )
 
-        z_lower = prediction - eps_prediction.T
-        z_upper = prediction + eps_prediction.T
+        z_lower = prediction - eps_prediction
+        z_upper = prediction + eps_prediction
         z = torch.where((nn.functional.one_hot(gt_output, prediction.size(-1))).bool(), z_lower, z_upper)
 
         # To print only
@@ -309,6 +310,15 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
             use_bias=parameters["use_bias"],
             no_weights=True,
         ).to(parameters["device"])
+    elif parameters["target_network"] == "AlexNet":
+         target_network = IntervalAlexNet(
+            in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+            num_classes=output_shape,
+            no_weights=True,
+            use_batch_norm=parameters["use_batch_norm"],
+            bn_track_stats=False,
+            distill_bn_stats=False
+        ).to(parameters["device"])
 
     hypernetwork = HMLP(
         target_network.param_shapes,
@@ -371,6 +381,12 @@ def main_running_experiments(path_to_datasets, parameters):
             use_augmentation=parameters["augmentation"],
             number_of_tasks=parameters["number_of_tasks"],
         )
+    elif parameters["dataset"] == "CIFAR100":
+        dataset_tasks_list = prepare_split_cifar100_tasks(
+            path_to_datasets,
+            validation_size=parameters["no_of_validation_samples"],
+            use_augmentation=parameters["augmentation"],
+        )
 
     # Measure time of the experiment
     start_time = time.time()
@@ -415,8 +431,8 @@ def main_running_experiments(path_to_datasets, parameters):
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "SplitMNIST"
-    # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'CIFAR100_FeCAM_setup'
+    dataset = "CIFAR100"
+    # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
     create_grid_search = False
 
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp

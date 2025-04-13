@@ -132,10 +132,8 @@ class IntervalConv2d:
     https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
     """
 
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int | Tuple[int], 
-                 stride: int | Tuple[int] = 1, padding: str | int | Tuple[int] = 0,
-                 dilation: int | Tuple[int] = 1, groups: int = 1, 
-                 padding_mode: str = 'zeros', device=None) -> None:
+    def __init__(self, in_channels, out_channels, kernel_size, stride = 1, padding = 0,
+                 dilation = 1, groups = 1, padding_mode = 'zeros', device="cpu") -> None:
 
         
         self.in_channels = in_channels
@@ -210,7 +208,7 @@ class IntervalConv2d:
               dilation=self.dilation,
               groups=self.groups
           )
-
+        
         return new_mu, new_eps
     
 class IntervalFlatten:
@@ -340,68 +338,68 @@ class IntervalBatchNorm:
         return new_mu, new_eps
     
 
-    class IntervalMaxPool2d:
+class IntervalMaxPool2d:
+    """
+    Interval version of MaxPool2d. Description of the arguments is here:
+    https://pytorch.org/docs/stable/generated/torch.nn.functional.max_pool2d.html
+    """
+    def __init__(self, kernel_size, stride=None, padding=0, dilation=1) -> None:
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.dilation = dilation
+
+    def forward(self, mu, eps, device: str = "cpu") -> Tuple[torch.Tensor,torch.Tensor]:
         """
-        Interval version of MaxPool2d. Description of the arguments is here:
-        https://pytorch.org/docs/stable/generated/torch.nn.functional.max_pool2d.html
-        """
-        def __init__(self, kernel_size, stride=None, padding=0, dilation=1) -> None:
-            self.kernel_size = kernel_size
-            self.stride = stride
-            self.padding = padding
-            self.dilation = dilation
+        Applies interval MaxPool.
 
-        def forward(self, mu, eps, device: str = "cpu") -> Tuple[torch.Tensor,torch.Tensor]:
-            """
-            Applies interval MaxPool.
+        Parameters:
+        ----------
+            mu: torch.Tensor
+                Midpoint of the interval. 
 
-            Parameters:
-            ----------
-                mu: torch.Tensor
-                    Midpoint of the interval. 
+            eps: torch.Tensor
+                Radii of the interval.
 
-                eps: torch.Tensor
-                    Radii of the interval.
-
-                device: str
-                    A string representing the device on which
-                    calculations will be performed. Possible
-                    values are "cpu" or "cuda". It is used just for
-                    convenience to simplify a forward method of NNs.
-            
-            Returns:
-            --------
-                new_mu: torch.Tensor
-                    'mu' after MaxPool2d.
-                
-                new_eps: torch.Tensor
-                    'eps' after MaxPool2d.
-
-            """
-
-            mu = mu.to(device)
-            eps = eps.to(device)
-
-            z_lower, z_upper = mu - eps, mu + eps
-            z_lower = F.max_pool2d(
-                z_lower,
-                self.kernel_size,
-                self.stride,
-                self.padding,
-                self.dilation
-            )
-
-            z_upper = F.max_pool2d(
-                z_upper,
-                self.kernel_size,
-                self.stride,
-                self.padding,
-                self.dilation
-            )
-
-            new_mu, new_eps = (z_upper+z_lower)/2.0, (z_upper-z_lower)/2.0
-
-            return new_mu, new_eps
-
+            device: str
+                A string representing the device on which
+                calculations will be performed. Possible
+                values are "cpu" or "cuda". It is used just for
+                convenience to simplify a forward method of NNs.
         
+        Returns:
+        --------
+            new_mu: torch.Tensor
+                'mu' after MaxPool2d.
+            
+            new_eps: torch.Tensor
+                'eps' after MaxPool2d.
+
+        """
+
+        mu = mu.to(device)
+        eps = eps.to(device)
+
+        z_lower, z_upper = mu - eps, mu + eps
+        z_lower = F.max_pool2d(
+            z_lower,
+            self.kernel_size,
+            self.stride,
+            self.padding,
+            self.dilation
+        )
+
+        z_upper = F.max_pool2d(
+            z_upper,
+            self.kernel_size,
+            self.stride,
+            self.padding,
+            self.dilation
+        )
+
+        new_mu, new_eps = (z_upper+z_lower)/2.0, (z_upper-z_lower)/2.0
+
+        return new_mu, new_eps
+
+    
 

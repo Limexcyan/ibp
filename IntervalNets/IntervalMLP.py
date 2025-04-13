@@ -111,7 +111,7 @@ class IntervalMLP(nn.Module, MainNetInterface):
                 hidden = (z_upper + z_lower) / 2
                 eps = (z_upper - z_lower) / 2
                 eps = eps.T
-        return hidden, eps
+        return hidden, eps.T
 
     def distillation_targets(self):
         return None

@@ -293,7 +293,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "resnet_widening_factor": 2,
                 "optimizer": "adam",
                 "use_batch_norm": True,
-                "target_network": "ResNet",
+                "target_network": "AlexNet",
                 "number_of_epochs": 200,
                 "augmentation": True,
             }
@@ -303,9 +303,8 @@ def set_hyperparameters(dataset, grid_search=False):
             ] = f"./Results/grid_search/CIFAR_100/"
 
         else:
-            # Best hyperparameters for ResNet
             hyperparams = {
-                "seed": [1, 2, 3, 4, 5],
+                "seed": [1],
                 "embedding_sizes": [48],
                 "betas": [0.01],
                 "lambdas": [1],
@@ -317,7 +316,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
                 "number_of_epochs": 200,
-                "target_network": "ResNet",
+                "target_network": "AlexNet",
                 "optimizer": "adam",
                 "augmentation": True,
             }
@@ -328,7 +327,7 @@ def set_hyperparameters(dataset, grid_search=False):
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples"] = 500
         hyperparams["no_of_validation_samples_per_class"] = 50
-        if hyperparams["target_network"] in ["ResNet", "ZenkeNet"]:
+        if hyperparams["target_network"] in ["ResNet", "AlexNet"]:
             hyperparams["shape"] = 32
             hyperparams["target_hidden_layers"] = None
         elif hyperparams["target_network"] == "MLP":

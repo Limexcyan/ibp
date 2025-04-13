@@ -284,9 +284,6 @@ class IntervalAlexNet(Classifier):
                 
             elif isinstance(layer, (IntervalReLU, IntervalMaxPool2d, IntervalFlatten)):
                 mu, eps = layer.forward(mu, eps, device=device)
-                
-            else:
-                raise ValueError(f"Unsupported layer type: {type(layer)}")
         return mu, eps
 
     def distillation_targets(self):
