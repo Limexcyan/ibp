@@ -163,6 +163,12 @@ class IntervalConv2d:
 
             eps: torch.Tensor
                 Radii of the interval.
+
+            weight: torch.Tensor
+                Kernels of a convolutional transformation.
+            
+            bias: torch.Tensor
+                Bias of a convolutional tranformation. Can be None.
             
             device: str
                 A string representing the device on which
@@ -253,4 +259,84 @@ class IntervalFlatten:
 
         return mu, eps
 
+
+class IntervalBatchNorm:
+    def __init__(self) -> None:
+        pass
+
+    def forward(self, mu, eps, weight, bias, running_mean, running_var, stats_id, 
+                batch_norm_forward, device="cpu") -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Applies interval version of a batch normalization layer. The implmentation needs to
+        be compatible with hypernetworks.
+
+        Parameters:
+        ----------
+            mu: torch.Tensor
+                Midpoint of the interval. 
+
+            eps: torch.Tensor
+                Radii of the interval.
+
+            weight: torch.Tensor
+                Learnable weight of the affine transformation.
+
+            bias: torch.Tensor
+                Learnable bias of the affine transformation.
+
+            running_mean: torch.Tensor
+                Running means calculated over batches of data.
+
+            running_var: torch.Tensor
+                Running variances calculated over batches of data.
+
+            stats_id: int
+                Identifier of statistics to be used.
+
+            batch_norm_forward: Callable
+                Forward method of 'hypnettorch.utils.batchnorm_layer.BatchNormLayer'.
+            
+            device: str
+                A string representing the device on which
+                calculations will be performed. Possible
+                values are "cpu" or "cuda".
+
+        Returns:
+        --------
+            new_mu: torch.Tensor
+                'mu' after the BatchNorm transformation.
+            
+            new_eps: torch.Tensor
+                'eps' after the BatchNorm transformation.
+        """
+        mu = mu.to(device)
+        eps = eps.to(device)
+
+        z_lower, z_upper = mu-eps, mu+eps
+
+        z_lower = batch_norm_forward(
+            z_lower,
+            running_mean=running_mean,
+            running_var=running_var,
+            weight=weight,
+            bias=bias,
+            stats_id=stats_id
+        )
+
+        z_upper = batch_norm_forward(
+            z_upper,
+            running_mean=running_mean,
+            running_var=running_var,
+            weight=weight,
+            bias=bias,
+            stats_id=stats_id
+        )
+
+        # It's just possible that the batchnorm's scale is negative.
+        z_lower, z_upper = torch.minimum(z_lower, z_upper), torch.maximum(z_lower, z_upper)
+        new_mu = (z_lower + z_upper) / 2.0
+        new_eps = (z_upper - z_lower) / 2.0
+
+        return new_mu, new_eps
+       
 
