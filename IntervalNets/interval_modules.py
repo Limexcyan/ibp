@@ -248,10 +248,10 @@ class IntervalFlatten:
         Returns:
         --------
             new_mu: torch.Tensor
-                Flatten 'mu'.
+                Flattened 'mu'.
             
             new_eps: torch.Tensor
-                Flatten 'eps'.
+                Flattened 'eps'.
 
         """
         mu  = mu.flatten(self.start_dim, self.end_dim).to(device)
@@ -338,5 +338,70 @@ class IntervalBatchNorm:
         new_eps = (z_upper - z_lower) / 2.0
 
         return new_mu, new_eps
-       
+    
+
+    class IntervalMaxPool2d:
+        """
+        Interval version of MaxPool2d. Description of the arguments is here:
+        https://pytorch.org/docs/stable/generated/torch.nn.functional.max_pool2d.html
+        """
+        def __init__(self, kernel_size, stride=None, padding=0, dilation=1) -> None:
+            self.kernel_size = kernel_size
+            self.stride = stride
+            self.padding = padding
+            self.dilation = dilation
+
+        def forward(self, mu, eps, device: str = "cpu") -> Tuple[torch.Tensor,torch.Tensor]:
+            """
+            Applies interval MaxPool.
+
+            Parameters:
+            ----------
+                mu: torch.Tensor
+                    Midpoint of the interval. 
+
+                eps: torch.Tensor
+                    Radii of the interval.
+
+                device: str
+                    A string representing the device on which
+                    calculations will be performed. Possible
+                    values are "cpu" or "cuda". It is used just for
+                    convenience to simplify a forward method of NNs.
+            
+            Returns:
+            --------
+                new_mu: torch.Tensor
+                    'mu' after MaxPool2d.
+                
+                new_eps: torch.Tensor
+                    'eps' after MaxPool2d.
+
+            """
+
+            mu = mu.to(device)
+            eps = eps.to(device)
+
+            z_lower, z_upper = mu - eps, mu + eps
+            z_lower = F.max_pool2d(
+                z_lower,
+                self.kernel_size,
+                self.stride,
+                self.padding,
+                self.dilation
+            )
+
+            z_upper = F.max_pool2d(
+                z_upper,
+                self.kernel_size,
+                self.stride,
+                self.padding,
+                self.dilation
+            )
+
+            new_mu, new_eps = (z_upper+z_lower)/2.0, (z_upper-z_lower)/2.0
+
+            return new_mu, new_eps
+
+        
 
