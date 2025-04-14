@@ -19,6 +19,7 @@ import hypnettorch.utils.hnet_regularizer as hreg
 
 from IntervalNets.IntervalMLP import IntervalMLP
 from IntervalNets.IntervalAlexNet import IntervalAlexNet
+from IntervalNets.IntervalResNet18 import IntervalResNet18
 from datasets import *
 
 
@@ -319,6 +320,22 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
             bn_track_stats=False,
             distill_bn_stats=False
         ).to(parameters["device"])
+    elif parameters["target_network"] == "ResNet":
+        target_network = IntervalResNet18(
+                in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+                use_bias=True,
+                use_fc_bias=parameters["use_bias"],
+                bottleneck_blocks=False,
+                num_classes=output_shape,
+                num_feature_maps=[16, 32, 64, 128],
+                blocks_per_group=[2, 2, 2, 2],
+                no_weights=True,
+                use_batch_norm=parameters["use_batch_norm"],
+                projection_shortcut=True,
+                bn_track_stats=False,
+                cutout_mod=False,
+                mode="default"
+            ).to(parameters["device"])
 
     hypernetwork = HMLP(
         target_network.param_shapes,
@@ -387,6 +404,13 @@ def main_running_experiments(path_to_datasets, parameters):
             validation_size=parameters["no_of_validation_samples"],
             use_augmentation=parameters["augmentation"],
         )
+    elif parameters["dataset"] == "TinyImageNet":
+        dataset_tasks_list = prepare_tinyimagenet_tasks(
+            path_to_datasets,
+            seed=parameters["seed"],
+            validation_size=parameters["no_of_validation_samples"],
+            number_of_tasks=parameters["number_of_tasks"]
+        )
 
     # Measure time of the experiment
     start_time = time.time()
@@ -430,9 +454,9 @@ def main_running_experiments(path_to_datasets, parameters):
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "CIFAR100"
+    dataset = "TinyImageNet"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
-    create_grid_search = False
+    create_grid_search = True
 
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
 

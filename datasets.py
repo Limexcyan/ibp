@@ -348,11 +348,8 @@ def set_hyperparameters(dataset, grid_search=False):
                 "target_network": "ResNet",
                 "number_of_epochs": 10,
                 "augmentation": True,
-                "saving_folder": f"./Results/TinyImageNet_grid_search/",
+                "saving_folder": f"./Results/TinyImageNet/",
             }
-            hyperparams[
-                "saving_folder"
-            ] = f"./Results/Tiny_Zenke_grid_search/"
         else:
             # ResNet
             hyperparams = {

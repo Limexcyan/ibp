@@ -58,7 +58,7 @@ class IntervalLinear:
         mu     = mu.to(device)
         eps    = eps.to(device)
         weight = weight.to(device)
-        bias   = bias.to(device)
+        bias   = bias.to(device) if bias is not None else bias
         
         # Perform linear transformations
         new_mu = F.linear(
@@ -186,7 +186,7 @@ class IntervalConv2d:
         mu     = mu.to(device)
         eps    = eps.to(device)
         weight = weight.to(device)
-        bias   = bias.to(device)
+        bias   = bias.to(device) if bias is not None else bias
         
         # Perform convolutional transformations
         new_mu = F.conv2d(
