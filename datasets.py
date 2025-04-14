@@ -32,7 +32,7 @@ def generate_random_permutations(
     return list_of_permutations
 
 def generate_random_rotations(
-    shape_of_data_instance, number_of_rotations
+    number_of_rotations, seed=None
 ):
     """
     Prepare a list of random rotations of the selected shape
@@ -40,7 +40,6 @@ def generate_random_rotations(
 
     Arguments:
     ----------
-      *shape_of_data_instance*: a number defining shape of the dataset
       *number_of_rotations*: int, a number of rotations that will
                                 be prepared; it corresponds to the total
                                 number of tasks
@@ -48,9 +47,13 @@ def generate_random_rotations(
               if one would get deterministic results
     """
     list_of_rotations = []
+
+    if seed is not None:
+        np.random.seed(seed)
+
     for _ in range(number_of_rotations):
         list_of_rotations.append(
-            np.random.rotation(shape_of_data_instance)
+            np.random.uniform(0, 360)
         )
     return list_of_rotations
 
