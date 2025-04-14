@@ -13,7 +13,7 @@ import random
 from hypnettorch.data.mnist_data import MNISTData
 
 
-class RotatedMNISTlist():
+class RotatedMNISTlist:
     def __init__(
             self,
             rotations,
@@ -27,7 +27,7 @@ class RotatedMNISTlist():
 
         self._data = RotatedMNIST(
             data_path,
-            use_not_hot=use_not_hot,
+            use_one_hot=use_one_hot,
             validation_size=validation_size,
             rotation=None,
             padding=padding,
@@ -46,7 +46,6 @@ class RotatedMNISTlist():
         return len(self._rotations)
 
     def __getitem__(self, index):
-        """Not implemented."""
         raise NotImplementedError('Not yet implemented!')
 
 class RotatedMNIST(MNISTData):
@@ -58,10 +57,13 @@ class RotatedMNIST(MNISTData):
             rotation=None,
             padding=0,
             trgt_padding=None):
-        super().__init__(data_path,
-                         use_one_hot=use_one_hot,
-                         validation_size=validation_size,
-                         use_torch_augmentation=False)
+
+        super().__init__(
+            data_path,
+            use_one_hot=use_one_hot,
+            validation_size=validation_size,
+            use_torch_augmentation=False
+        )
 
         self._padding = padding
         self._input_dim = (28 + padding*2)**2
@@ -82,7 +84,7 @@ class RotatedMNIST(MNISTData):
     @rotation.setter
     def rotation(self, value):
         self._rotation = value
-        self._transform = RotatedMNIST.torch_input_transforms(padding=self._padding, rotatio=value)
+        self._transform = RotatedMNIST.torch_input_transforms(padding=self._padding, rotation=value)
 
     @property
     def torch_in_shape(self):
@@ -92,10 +94,10 @@ class RotatedMNIST(MNISTData):
             self.in_shape[2]
         ]
 
-    def get_inentifier(self):
+    def get_identifier(self):
         return 'RotatedMNIST'
 
-    def input_to_torch_tensot(self,
+    def input_to_torch_tensor(self,
                               x,
                               device,
                               mode="interference",
@@ -122,7 +124,9 @@ class RotatedMNIST(MNISTData):
                 sample_ids=sample_ids
             )
 
-    def torch_input_transforms(padding=0, rotatio=None):
+    def torch_input_transforms(self,
+                               padding=0,
+                               rotation=None):
         transform_list = [
             transforms.ToPILImage('L'),
             transforms.Pad(padding),
