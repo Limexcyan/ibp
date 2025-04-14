@@ -20,9 +20,7 @@ class RotatedMNISTlist:
             data_path,
             use_not_hot=True,
             validation_size=0,
-            padding=0,
-            trgt_padding=None,
-            show_rot_change_msg=True
+            padding=0
         ):
 
         self._data = RotatedMNIST(
@@ -35,8 +33,6 @@ class RotatedMNISTlist:
         )
 
         self._rotations = rotations
-
-        self._show_perm_change_msg = show_rot_change_msg
 
         self._batch_gens_train = [None] * len(rotations)
         self._batch_gens_test = [None] * len(rotations)
@@ -55,8 +51,8 @@ class RotatedMNIST(MNISTData):
             use_one_hot=True,
             validation_size=0,
             rotation=None,
-            padding=0,
-            trgt_padding=None):
+            padding=0
+    ):
 
         super().__init__(
             data_path,
@@ -68,14 +64,6 @@ class RotatedMNIST(MNISTData):
         self._padding = padding
         self._input_dim = (28 + padding*2)**2
         self._rotation = rotation
-
-        if trgt_padding is not None and trgt_padding > 0:
-            self._data['num_classes'] += trgt_padding
-            if self.is_one_hot:
-                self._data['out_shape'] = [self._data['out_shape'][0] + trgt_padding]
-                out_data = self._data['out_shape']
-                self._data['out_data'] = np.concatenate((out_data,
-                                                         np.zeros((out_data.shape[0], trgt_padding))), axis=1)
 
     @property
     def rotation(self):
@@ -97,12 +85,14 @@ class RotatedMNIST(MNISTData):
     def get_identifier(self):
         return 'RotatedMNIST'
 
-    def input_to_torch_tensor(self,
-                              x,
-                              device,
-                              mode="interference",
-                              force_no_preprocessing=False,
-                              sample_ids=None):
+    def input_to_torch_tensor(
+            self,
+            x,
+            device,
+            mode="interference",
+            force_no_preprocessing=False,
+            sample_ids=None
+    ):
         if not force_no_preprocessing:
             assert len(x.shape) == 2
 
@@ -124,9 +114,11 @@ class RotatedMNIST(MNISTData):
                 sample_ids=sample_ids
             )
 
-    def torch_input_transforms(self,
-                               padding=0,
-                               rotation=None):
+    def torch_input_transforms(
+            self,
+            padding=0,
+            rotation=None
+    ):
         transform_list = [
             transforms.ToPILImage('L'),
             transforms.Pad(padding),
