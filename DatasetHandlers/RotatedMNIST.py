@@ -62,6 +62,7 @@ class RotatedMNIST(MNISTData):
             use_torch_augmentation=False
         )
 
+        self._transform = None
         self._padding = padding
         self._input_dim = (28 + padding*2)**2
         self._rotation = rotation
