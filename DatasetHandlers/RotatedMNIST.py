@@ -28,11 +28,12 @@ class RotatedMNISTlist:
             use_one_hot=use_one_hot,
             validation_size=validation_size,
             rotation=None,
-            padding=padding,
-            trgt_padding=trgt_padding
+            padding=padding
         )
 
         self._rotations = rotations
+
+        self._transform = None
 
         self._batch_gens_train = [None] * len(rotations)
         self._batch_gens_test = [None] * len(rotations)
