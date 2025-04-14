@@ -411,6 +411,14 @@ def main_running_experiments(path_to_datasets, parameters):
             validation_size=parameters["no_of_validation_samples"],
             number_of_tasks=parameters["number_of_tasks"]
         )
+    elif parameters["dataset"] == "RotatedMNIST":
+        dataset_tasks_list = prepare_rotated_mnist_tasks(
+            path_to_datasets,
+            parameters["input_shape"],
+            parameters["number_of_tasks"],
+            parameters["padding"],
+            parameters["no_of_validation_samples"],
+        )
 
     # Measure time of the experiment
     start_time = time.time()
@@ -455,7 +463,7 @@ def main_running_experiments(path_to_datasets, parameters):
 if __name__ == "__main__":
     path_to_datasets = "./Data"
     dataset = "TinyImageNet"
-    # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
+    # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'RotatedMNIST'
     create_grid_search = True
 
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
