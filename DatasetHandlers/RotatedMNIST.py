@@ -3,6 +3,7 @@ Implementation of RotatedMNIST for continual learning tasks.
 """
 
 import torch
+from torch import stack
 import copy
 import numpy as np
 from torchvision import datasets, transforms
@@ -57,7 +58,10 @@ class RotatedMNIST(MNISTData):
             rotation=None,
             padding=0,
             trgt_padding=None):
-        super().__init__(data_path, use_one_hot=use_one_hot, validation_size=validation_size, use_torch_augmentation=False)
+        super().__init__(data_path,
+                         use_one_hot=use_one_hot,
+                         validation_size=validation_size,
+                         use_torch_augmentation=False)
 
         self._padding = padding
         self._input_dim = (28 + padding*2)**2
@@ -91,10 +95,14 @@ class RotatedMNIST(MNISTData):
     def get_inentifier(self):
         return 'RotatedMNIST'
 
-    def input_to_torch_tensot(self, x, device, mode="interference", force_no_preprocessing=False, sample_ids=None):
+    def input_to_torch_tensot(self,
+                              x,
+                              device,
+                              mode="interference",
+                              force_no_preprocessing=False,
+                              sample_ids=None):
         if not force_no_preprocessing:
             assert len(x.shape) == 2
-            from torch import stack
 
             img_size = 28 + 2 * self._padding
             x = (x * 255.0).astype('uint8')
@@ -105,16 +113,16 @@ class RotatedMNIST(MNISTData):
 
             return x
         else:
-            return MNISTData.input_to_torch_tensor(self,
-                                                   x,
-                                                   device,
-                                                   mode=mode,
-                                                   force_no_preprocessing=force_no_preprocessing,
-                                                   sample_ids=sample_ids)
+            return MNISTData.input_to_torch_tensor(
+                self,
+                x,
+                device,
+                mode=mode,
+                force_no_preprocessing=force_no_preprocessing,
+                sample_ids=sample_ids
+            )
 
     def torch_input_transforms(padding=0, rotatio=None):
-        import torchvision.transforms as transforms
-
         transform_list = [
             transforms.ToPILImage('L'),
             transforms.Pad(padding),
