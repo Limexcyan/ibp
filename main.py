@@ -413,7 +413,6 @@ def main_running_experiments(path_to_datasets, parameters):
         f'{parameters["optimizer"]};'
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
-        f'{parameters["lambda"]};'
         f'{parameters["perturbation_epsilon"]};'
         f"{np.mean(accuracies)};{np.std(accuracies)};"
         f"{elapsed_time}"
@@ -448,7 +447,7 @@ if __name__ == "__main__":
         "target_network;target_hidden_layers;"
         "layer_groups;widening;final_model;optimizer;"
         "hypernet_activation_function;learning_rate;batch_size;beta;"
-        "lambda;mean_accuracy;std_accuracy;peturbated_epsilon;elapsed_time"
+        "mean_accuracy;std_accuracy;peturbated_epsilon;elapsed_time"
     )
     append_row_to_file(f'{hyperparameters["saving_folder"]}{summary_results_filename}.csv', header)
 
@@ -458,7 +457,6 @@ if __name__ == "__main__":
             hyperparameters["learning_rates"],
             hyperparameters["betas"],
             hyperparameters["hypernetworks_hidden_layers"],
-            hyperparameters["lambdas"],
             hyperparameters["batch_sizes"],
             hyperparameters["seed"],
             hyperparameters["perturbation_epsilons"]
@@ -468,10 +466,9 @@ if __name__ == "__main__":
         learning_rate = elements[1]
         beta = elements[2]
         hypernetwork_hidden_layers = elements[3]
-        lambda_par = elements[4]
-        batch_size = elements[5]
-        seed = elements[6]
-        perturbation_epsilon = elements[7]
+        batch_size = elements[4]
+        seed = elements[5]
+        perturbation_epsilon = elements[6]
 
         parameters = {
             "input_shape": hyperparameters["shape"],
@@ -493,7 +490,6 @@ if __name__ == "__main__":
             "number_of_iterations": hyperparameters["number_of_iterations"],
             "no_of_validation_samples_per_class": hyperparameters["no_of_validation_samples_per_class"],
             "embedding_size": embedding_size,
-            "lambda": lambda_par,
             "perturbation_epsilon": perturbation_epsilon,
             "optimizer": hyperparameters["optimizer"],
             "beta": beta,
