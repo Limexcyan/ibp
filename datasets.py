@@ -431,6 +431,48 @@ def set_hyperparameters(dataset, grid_search=False):
         hyperparams["number_of_tasks"] = 5
         hyperparams["use_batch_norm"] = False
         hyperparams["padding"] = None
+    elif dataset == "RotatedMNIST":
+        if grid_search:
+            hyperparams = {
+                "embedding_sizes": [24],
+                "learning_rates": [0.001],
+                "batch_sizes": [128],
+                "betas": [0.001, 0.0005, 0.005],
+                "perturbation_epsilons": [0.01],
+                "hypernetworks_hidden_layers": [[100, 100]],
+                "best_model_selection_method": "val_loss",
+                "saving_folder": "./Results/grid_search/rotated_mnist/",
+                "seed": [1, 2, 3, 4, 5],
+            }
+
+        else:
+            hyperparams = {
+                "seed": [1, 2, 3, 4, 5],
+                "embedding_sizes": [24],
+                "learning_rates": [0.001],
+                "batch_sizes": [128],
+                "betas": [0.0005],
+                "perturbation_epsilons": [0.01],
+                "hypernetworks_hidden_layers": [[100, 100]],
+                "best_model_selection_method": "last_model",
+                "saving_folder": "./Results/rotated_mnist_best_hyperparams/",
+            }
+
+        hyperparams["lr_scheduler"] = False
+        hyperparams["number_of_iterations"] = 5000
+        hyperparams["number_of_epochs"] = None
+        hyperparams["no_of_validation_samples"] = 5000
+        hyperparams["no_of_validation_samples_per_class"] = 500
+        hyperparams["target_hidden_layers"] = [1000, 1000]
+        hyperparams["target_network"] = "IntervalMLP"
+        hyperparams["resnet_number_of_layer_groups"] = None
+        hyperparams["resnet_widening_factor"] = None
+        hyperparams["optimizer"] = "adam"
+        hyperparams["use_batch_norm"] = False
+        hyperparams["padding"] = 2
+        hyperparams["shape"] = (28 + 2 * hyperparams["padding"]) ** 2
+        hyperparams["number_of_tasks"] = 10
+        hyperparams["augmentation"] = False
     else:
         raise ValueError("This dataset is not implemented!")
 
