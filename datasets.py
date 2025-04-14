@@ -223,7 +223,7 @@ def set_hyperparameters(dataset, grid_search=False):
 
     Arguments:
     ----------
-      *dataset*: 'PermutedMNIST', 'SplitMNIST' or 'CIFAR100'
+      *dataset*: 'PermutedMNIST', 'SplitMNIST', 'CIFAR100', 'TinyImageNet', 'RotatedMNIST'
       *grid_search*: (Boolean optional) defines whether a hyperparameter
                      optimization should be performed or hyperparameters
                      for just a single run have to be returned
@@ -259,7 +259,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "saving_folder": "./Results/permuted_mnist_best_hyperparams/",
             }
 
-        # Both in the grid search and individual runs
         hyperparams["lr_scheduler"] = False
         hyperparams["number_of_iterations"] = 5000
         hyperparams["number_of_epochs"] = None
@@ -294,12 +293,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "target_network": "AlexNet",
                 "number_of_epochs": 200,
                 "augmentation": True,
-            }
-    
-            hyperparams[
-                "saving_folder"
-            ] = f"./Results/grid_search/CIFAR_100/"
-
+                "saving_folder": f"./Results/grid_search/CIFAR_100/"}
         else:
             hyperparams = {
                 "seed": [1],
@@ -316,10 +310,8 @@ def set_hyperparameters(dataset, grid_search=False):
                 "target_network": "AlexNet",
                 "optimizer": "adam",
                 "augmentation": True,
-            }
-            hyperparams[
-                "saving_folder"
-            ] = f"./Results/CIFAR_100_best_hyperparams/"
+                "saving_folder": f"./Results/CIFAR_100_best_hyperparams/"}
+
         hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples"] = 500
@@ -394,17 +386,12 @@ def set_hyperparameters(dataset, grid_search=False):
                 "betas": [0.001],
                 "hypernetworks_hidden_layers": [[25, 25]],
                 "perturbation_epsilons": [0.01],
-                # Seed is not for optimization but for ensuring multiple results
                 "seed": [1, 2, 3, 4, 5],
                 "best_model_selection_method": "val_loss",
                 "embedding_sizes": [64],
                 "augmentation": True,
-            }
-
-            hyperparams["saving_folder"] = "./Results/grid_search/split_mnist/"
-
+                "saving_folder": "./Results/grid_search/split_mnist/"}
         else:
-            # Best hyperparameters
             hyperparams = {
                 "seed": [1],
                 "embedding_sizes": [72],
@@ -417,6 +404,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "best_model_selection_method": "val_loss",
                 "saving_folder": "./Results/split_mnist_test/",
             }
+
         hyperparams["lr_scheduler"] = False
         hyperparams["target_network"] = "IntervalMLP"
         hyperparams["resnet_number_of_layer_groups"] = None
@@ -431,6 +419,7 @@ def set_hyperparameters(dataset, grid_search=False):
         hyperparams["number_of_tasks"] = 5
         hyperparams["use_batch_norm"] = False
         hyperparams["padding"] = None
+
     elif dataset == "RotatedMNIST":
         if grid_search:
             hyperparams = {
