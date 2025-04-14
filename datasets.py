@@ -6,7 +6,7 @@ from hypnettorch.data.special import permuted_mnist
 from hypnettorch.data.special.split_cifar import SplitCIFAR100Data
 from hypnettorch.data.special.split_mnist import get_split_mnist_handlers
 
-from DatasetHandlers.TinyImageNet import TinyImageNet
+from DatasetHandlers.TinyImageNet import TinyImageNet, RotatedMNIST
 
 
 def generate_random_permutations(
@@ -176,8 +176,8 @@ def prepare_rotated_mnist_tasks(
     Returns a list of RotatedMNIST objects.
     """
     rotations = generate_random_rotations(input_shape, number_of_tasks)
-    return permuted_mnist.PermutedMNISTList(
-        permutations,
+    return RotatedMNIST.RotatedMNISTList(
+        rotations,
         datasets_folder,
         use_one_hot=True,
         padding=padding,
