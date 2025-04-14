@@ -38,9 +38,9 @@ class RotatedMNISTlist:
 
         self._show_perm_change_msg = show_rot_change_msg
 
-        self._batch_gens_train = [None] * len(permutations)
-        self._batch_gens_test = [None] * len(permutations)
-        self._batch_gens_val = [None] * len(permutations)
+        self._batch_gens_train = [None] * len(rotations)
+        self._batch_gens_test = [None] * len(rotations)
+        self._batch_gens_val = [None] * len(rotations)
 
     def __len__(self):
         return len(self._rotations)
