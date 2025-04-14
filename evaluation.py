@@ -421,13 +421,6 @@ def evaluate_target_network(
         return target_network.forward(
             network_input, weights=weights, condition=condition
         )
-    elif target_network_type == "ResNetF":
-        # ResNetF returns not only the logits values but also features
-        # representation
-        logits, features = target_network.forward(
-            network_input, weights=weights, condition=condition
-        )
-        return logits, features
     else:
         return target_network.forward(network_input, weights=weights)
 

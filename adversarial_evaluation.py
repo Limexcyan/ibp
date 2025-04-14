@@ -52,10 +52,17 @@ def calculate_accuracy(
     data_input.requires_grad = True
     gt_classes = data_output.max(dim=1)[1]
 
-    logits, _ = target_network.forward(
-        data_input, 
-        epsilon=perturbation_epsilon,
-        weights=weights)
+    if parameters["use_batch_norm_memory"]:
+        logits, _ = target_network.forward(
+            data_input, 
+            epsilon=perturbation_epsilon,
+            weights=weights,
+            condition=parameters["number_of_task"])
+    else:
+        logits, _ = target_network.forward(
+            data_input, 
+            epsilon=perturbation_epsilon,
+            weights=weights)
     predictions = logits.max(dim=1)[1]
     attack_instance = 0
     if attack == 'None':
@@ -74,9 +81,16 @@ def calculate_accuracy(
     print('atack epsilon', epsilon_attack)
 
     adv_images = attack_instance(data_input, gt_classes)
-    adv_logits = target_network.forward(adv_images, 
-                                        epsilon=0.0,
-                                        weights=weights)
+
+    if parameters["use_batch_norm_memory"]:
+        adv_logits, _ = target_network.forward(adv_images, 
+                                            epsilon=0.0,
+                                            weights=weights,
+                                            condition=parameters["number_of_task"])
+    else:
+        adv_logits, _ = target_network.forward(adv_images, 
+                                            epsilon=0.0,
+                                            weights=weights)
 
     perturbed_pred = adv_logits.argmax(dim=1)
 
