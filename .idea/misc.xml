@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="hypnettorch (2)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="hypnettorch (2)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="hypnettorch" project-jdk-type="Python SDK" />
 </project>

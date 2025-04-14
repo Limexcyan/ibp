@@ -31,6 +31,29 @@ def generate_random_permutations(
         )
     return list_of_permutations
 
+def generate_random_rotations(
+    shape_of_data_instance, number_of_rotations
+):
+    """
+    Prepare a list of random rotations of the selected shape
+    for continual learning tasks.
+
+    Arguments:
+    ----------
+      *shape_of_data_instance*: a number defining shape of the dataset
+      *number_of_rotations*: int, a number of rotations that will
+                                be prepared; it corresponds to the total
+                                number of tasks
+      *seed*: int, optional argument, default: None
+              if one would get deterministic results
+    """
+    list_of_rotations = []
+    for _ in range(number_of_rotations):
+        list_of_rotations.append(
+            np.random.rotation(shape_of_data_instance)
+        )
+    return list_of_rotations
+
 
 def prepare_split_cifar100_tasks(
     datasets_folder, validation_size, use_augmentation, use_cutout=False
@@ -123,6 +146,32 @@ def prepare_permuted_mnist_tasks(
     Returns a list of PermutedMNIST objects.
     """
     permutations = generate_random_permutations(input_shape, number_of_tasks)
+    return permuted_mnist.PermutedMNISTList(
+        permutations,
+        datasets_folder,
+        use_one_hot=True,
+        padding=padding,
+        validation_size=validation_size,
+    )
+
+
+def prepare_rotated_mnist_tasks(
+    datasets_folder, input_shape, number_of_tasks, padding, validation_size
+):
+    """
+    Prepare a list of *number_of_tasks* tasks related
+    to the RotatedMNIST dataset.
+
+    Arguments:
+    ----------
+      *datasets_folder*: (string) Defines a path in which MNIST dataset
+                         is stored / will be downloaded
+      *input_shape*: (int) a number defining shape of the dataset
+      *validation_size*: (int) The number of validation samples
+
+    Returns a list of RotatedMNIST objects.
+    """
+    rotations = generate_random_rotations(input_shape, number_of_tasks)
     return permuted_mnist.PermutedMNISTList(
         permutations,
         datasets_folder,
