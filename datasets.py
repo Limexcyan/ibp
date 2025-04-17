@@ -7,6 +7,7 @@ from hypnettorch.data.special.split_cifar import SplitCIFAR100Data
 from hypnettorch.data.special.split_mnist import get_split_mnist_handlers
 
 from DatasetHandlers.TinyImageNet import TinyImageNet, RotatedMNIST
+from DatasetHandlers.ImageNetSubset import SubsetImageNet
 
 
 def generate_random_permutations(
@@ -132,6 +133,41 @@ def prepare_tinyimagenet_tasks(
         )
     return handlers
 
+def prepare_imagenet_subset_tasks(
+    datasets_folder, validation_size, use_augmentation, input_shape,
+):
+    """
+    Prepare a list of five tasks related
+    to the ImageNet-Subset dataset according to the FeCAM setup.
+
+    Arguments:
+    ----------
+      *datasets_folder*: (string) Defines a path in which the main folder
+                         of the ImageNet-Subset is stored
+      *seed*: (int) Necessary for the preparation of random permutation
+              of the samples order in batches.
+      *validation_size*: (int) defines the total number of validation
+                         samples in each task, 0 if the validation set
+                         should not be used
+      *use_augmentation*: (bool) defines whether dataset augmentation
+                          will be applied
+
+    Returns a list of ImageNet-Subset objects.
+    """
+    handlers = []
+    # 5 tasks, 20 classes per each, like in FeCAM MSCIL setting
+    for task_no in range(5):
+        handlers.append(
+            SubsetImageNet(
+                data_path=datasets_folder,
+                number_of_task=task_no,
+                validation_size=validation_size,
+                use_data_augmentation=use_augmentation,
+                use_one_hot=True,
+                input_shape=input_shape,
+            )
+        )
+    return handlers
 
 def prepare_permuted_mnist_tasks(
     datasets_folder, input_shape, number_of_tasks, padding, validation_size
@@ -462,6 +498,44 @@ def set_hyperparameters(dataset, grid_search=False):
         hyperparams["shape"] = (28 + 2 * hyperparams["padding"]) ** 2
         hyperparams["number_of_tasks"] = 10
         hyperparams["augmentation"] = False
+        
+    elif dataset == "ImageNetSubset":
+        if grid_search:
+            hyperparams = {
+                "seed": [5],
+                "embedding_sizes": [128],
+                "sparsity_parameters": [0],
+                "betas": [0.1],
+                "lambdas": [0.1],
+                "batch_sizes": [128],
+                "learning_rates": [0.001],
+                "norm_regularizer_masking_opts": [False],
+                "hypernetworks_hidden_layers": [[100]],
+                "use_batch_norm": True,
+                "use_chunks": True,
+                "chunk_emb_sizes": [256],
+                "resnet_number_of_layer_groups": None,
+                "resnet_widening_factor": None,
+                "number_of_epochs": 100,
+                "target_network": "ResNet",
+                "optimizer": "adam",
+                "augmentation": True,
+                "trainable_target_network": [True],
+                "shape": 64,
+                "target_hidden_layers": None,
+                "saving_folder": f"./Results/ImageNetSubset/",
+            }
+            
+        hyperparams["lr_scheduler"] = True
+        hyperparams["number_of_iterations"] = None
+        hyperparams["no_of_validation_samples"] = 1000
+        hyperparams["no_of_validation_samples_per_class"] = None
+        if hyperparams["target_network"] == "MLP":
+            raise ValueError("Input size is equal to over 150k. Use other architecture.")
+        hyperparams["number_of_tasks"] = 5
+        hyperparams["adaptive_sparsity"] = True
+        hyperparams["padding"] = None
+        hyperparams["best_model_selection_method"] = "val_loss"
     else:
         raise ValueError("This dataset is not implemented!")
 
