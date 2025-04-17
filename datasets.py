@@ -525,6 +525,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "shape": 64,
                 "target_hidden_layers": None,
                 "saving_folder": f"./Results/ImageNetSubset/",
+                "perturbation_epsilons": [0.01],
             }
             
         hyperparams["lr_scheduler"] = True
