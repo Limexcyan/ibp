@@ -198,5 +198,13 @@ if __name__ == "__main__":
         set_seed(parameters["seed"])
 
     hnet001_path = 'Results/split_mnist_test/1903 001b001/hnet100.0.pt'
+    
+    # Please check attack strength
+    epsilon_attack = 0.1
 
-    main_running_experiments(path_to_datasets, parameters, hnet001_path, attack='FGSM')
+    main_running_experiments(
+        path_to_datasets=path_to_datasets,
+        parameters=parameters,
+        hypernetwork_model=hnet001_path, 
+        epsilon_attack=epsilon_attack,
+        attack='FGSM')
