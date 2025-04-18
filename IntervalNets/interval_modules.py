@@ -22,7 +22,7 @@ class IntervalLinear:
                     eps: torch.Tensor,
                     weight: torch.Tensor,
                     bias: torch.Tensor = None,
-                    device: str = "cpu") -> Tuple[torch.Tensor, torch.Tensor]:
+                    device: str = "cuda") -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies interval version of a linear transformation.
 
@@ -89,7 +89,7 @@ class IntervalReLU:
 
     def forward(self, mu: torch.Tensor, 
                 eps: torch.Tensor,
-                device: str = "cpu") -> Tuple[torch.Tensor, torch.Tensor]:
+                device: str = "cuda") -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies interval version of a ReLU transformation.
 
@@ -133,7 +133,7 @@ class IntervalConv2d:
     """
 
     def __init__(self, in_channels, out_channels, kernel_size, stride = 1, padding = 0,
-                 dilation = 1, groups = 1, padding_mode = 'zeros', device="cpu") -> None:
+                 dilation = 1, groups = 1, padding_mode = 'zeros', device="cuda") -> None:
 
         
         self.in_channels = in_channels
@@ -150,7 +150,7 @@ class IntervalConv2d:
                 eps: torch.Tensor,
                 weight: torch.Tensor,
                 bias: torch.Tensor,
-                device: str = "cpu") -> Tuple[torch.Tensor, torch.Tensor]:
+                device: str = "cuda") -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies interval version of a convolutional transformation.
 
@@ -224,7 +224,7 @@ class IntervalFlatten:
         self.end_dim = end_dim
 
     def forward(self, mu: torch.Tensor, eps: torch.Tensor,
-                device: str = "cpu") -> Tuple[torch.Tensor,torch.Tensor]:
+                device: str = "cuda") -> Tuple[torch.Tensor,torch.Tensor]:
         
         """
         Applies interval flattening.
@@ -263,7 +263,7 @@ class IntervalBatchNorm:
         pass
 
     def forward(self, mu, eps, weight, bias, running_mean, running_var, stats_id, 
-                batch_norm_forward, device="cpu") -> Tuple[torch.Tensor, torch.Tensor]:
+                batch_norm_forward, device="cuda") -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies interval version of a batch normalization layer. The implmentation needs to
         be compatible with hypernetworks.
@@ -349,7 +349,7 @@ class IntervalMaxPool2d:
         self.padding = padding
         self.dilation = dilation
 
-    def forward(self, mu, eps, device: str = "cpu") -> Tuple[torch.Tensor,torch.Tensor]:
+    def forward(self, mu, eps, device: str = "cuda") -> Tuple[torch.Tensor,torch.Tensor]:
         """
         Applies interval MaxPool.
 
@@ -411,7 +411,7 @@ class IntervalAvgPool2d:
         self.stride = stride
         self.padding = padding
 
-    def forward(self, mu, eps, device="cpu") -> Tuple[torch.Tensor,torch.Tensor]:
+    def forward(self, mu, eps, device="cuda") -> Tuple[torch.Tensor,torch.Tensor]:
         """
         Applies interval average-pooling.
 
