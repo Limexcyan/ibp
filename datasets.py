@@ -505,23 +505,17 @@ def set_hyperparameters(dataset, grid_search=False):
             hyperparams = {
                 "seed": [5],
                 "embedding_sizes": [128],
-                "sparsity_parameters": [0],
                 "betas": [0.1],
-                "lambdas": [0.1],
                 "batch_sizes": [128],
                 "learning_rates": [0.001],
-                "norm_regularizer_masking_opts": [False],
                 "hypernetworks_hidden_layers": [[100]],
                 "use_batch_norm": True,
-                "use_chunks": True,
-                "chunk_emb_sizes": [256],
-                "resnet_number_of_layer_groups": None,
-                "resnet_widening_factor": None,
-                "number_of_epochs": 100,
+                "resnet_number_of_layer_groups": 3,
+                "resnet_widening_factor": 2,
+                "number_of_epochs": 10,
                 "target_network": "ResNet",
                 "optimizer": "adam",
                 "augmentation": True,
-                "trainable_target_network": [True],
                 "shape": 64,
                 "target_hidden_layers": None,
                 "saving_folder": f"./Results/ImageNetSubset/",
@@ -531,11 +525,8 @@ def set_hyperparameters(dataset, grid_search=False):
         hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples"] = 1000
-        hyperparams["no_of_validation_samples_per_class"] = None
-        if hyperparams["target_network"] == "MLP":
-            raise ValueError("Input size is equal to over 150k. Use other architecture.")
+        hyperparams["no_of_validation_samples_per_class"] = 200
         hyperparams["number_of_tasks"] = 5
-        hyperparams["adaptive_sparsity"] = True
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
     else:
