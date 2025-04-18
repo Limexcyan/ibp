@@ -506,7 +506,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "seed": [5],
                 "embedding_sizes": [128],
                 "betas": [0.1],
-                "batch_sizes": [128],
+                "batch_sizes": [16],
                 "learning_rates": [0.001],
                 "hypernetworks_hidden_layers": [[100]],
                 "use_batch_norm": True,
