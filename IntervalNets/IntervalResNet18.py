@@ -343,7 +343,7 @@ class IntervalResNet18(Classifier):
         return self._has_bias
 
     def forward(self, x: torch.Tensor, epsilon: torch.Tensor, weights: list,
-                distilled_params=None, condition=None, device="cpu") -> Tuple[torch.Tensor, torch.Tensor]:
+                distilled_params=None, condition=None, device="cuda") -> Tuple[torch.Tensor, torch.Tensor]:
         if (
             (not self._use_context_mod and self._no_weights)
             or (self._no_weights or self._context_mod_no_weights)

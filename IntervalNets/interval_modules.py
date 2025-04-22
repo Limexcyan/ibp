@@ -309,6 +309,8 @@ class IntervalBatchNorm:
         """
         mu = mu.to(device)
         eps = eps.to(device)
+        weight = weight.to(device)
+        bias = bias.to(device)
 
         z_lower, z_upper = mu-eps, mu+eps
 
