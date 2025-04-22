@@ -374,10 +374,4 @@ class SubsetImageNet(Dataset):
 
 
 if __name__ == "__main__":
-    subset = SubsetImageNet(
-        data_path="/home/kksiazek/Desktop/Datasets/imagenet_subset",
-        validation_size=500,
-        use_one_hot=True,
-        number_of_task=1,
-        input_shape=64,
-    )
+    pass
