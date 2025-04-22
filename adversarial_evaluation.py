@@ -6,8 +6,9 @@ from copy import deepcopy
 
 import torch
 from hypnettorch.hnets import HMLP
-from torchattacks.attacks.fgsm import FGSM
-from torchattacks import PGD, AutoAttack
+
+from Attacks.fgsm import FGSM
+from Attacks.pgd import PGD
 
 from IntervalNets.IntervalMLP import IntervalMLP
 from datasets import set_hyperparameters, prepare_permuted_mnist_tasks, prepare_split_mnist_tasks
