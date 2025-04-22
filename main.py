@@ -419,6 +419,13 @@ def main_running_experiments(path_to_datasets, parameters):
             parameters["padding"],
             parameters["no_of_validation_samples"],
         )
+    elif parameters["dataset"] == "ImageNetSubset":
+        dataset_tasks_list = prepare_imagenet_subset_tasks(
+            path_to_datasets,
+            validation_size=parameters["no_of_validation_samples"],
+            use_augmentation=parameters["augmentation"],
+            input_shape=parameters["input_shape"],
+        )
 
     # Measure time of the experiment
     start_time = time.time()
@@ -463,7 +470,7 @@ def main_running_experiments(path_to_datasets, parameters):
 if __name__ == "__main__":
     path_to_datasets = "./Data"
     dataset = "TinyImageNet"
-    # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'RotatedMNIST'
+    # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'RotatedMNIST', 'ImageNetSubset'
     create_grid_search = True
 
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp

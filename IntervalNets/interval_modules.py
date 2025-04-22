@@ -22,7 +22,7 @@ class IntervalLinear:
                     eps: torch.Tensor,
                     weight: torch.Tensor,
                     bias: torch.Tensor = None,
-                    device: str = "cpu") -> Tuple[torch.Tensor, torch.Tensor]:
+                    device: str = "cuda") -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies interval version of a linear transformation.
 
@@ -89,7 +89,7 @@ class IntervalReLU:
 
     def forward(self, mu: torch.Tensor, 
                 eps: torch.Tensor,
-                device: str = "cpu") -> Tuple[torch.Tensor, torch.Tensor]:
+                device: str = "cuda") -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies interval version of a ReLU transformation.
 
@@ -150,7 +150,7 @@ class IntervalConv2d:
                 eps: torch.Tensor,
                 weight: torch.Tensor,
                 bias: torch.Tensor,
-                device: str = "cpu") -> Tuple[torch.Tensor, torch.Tensor]:
+                device: str = "cuda") -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Applies interval version of a convolutional transformation.
 
@@ -224,7 +224,7 @@ class IntervalFlatten:
         self.end_dim = end_dim
 
     def forward(self, mu: torch.Tensor, eps: torch.Tensor,
-                device: str = "cpu") -> Tuple[torch.Tensor,torch.Tensor]:
+                device: str = "cuda") -> Tuple[torch.Tensor,torch.Tensor]:
         
         """
         Applies interval flattening.
@@ -351,7 +351,7 @@ class IntervalMaxPool2d:
         self.padding = padding
         self.dilation = dilation
 
-    def forward(self, mu, eps, device: str = "cpu") -> Tuple[torch.Tensor,torch.Tensor]:
+    def forward(self, mu, eps, device: str = "cuda") -> Tuple[torch.Tensor,torch.Tensor]:
         """
         Applies interval MaxPool.
 
