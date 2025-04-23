@@ -75,6 +75,14 @@ def prepare_dataset(parameters, path_to_datasets):
             parameters["padding"],
             parameters["no_of_validation_samples"]
         )
+    elif parameters["dataset"] == "RotatedMNIST":
+        return prepare_rotated_mnist_tasks(
+            path_to_datasets,
+            parameters["input_shape"],
+            parameters["number_of_tasks"],
+            parameters["padding"],
+            parameters["no_of_validation_samples"]
+        )
     elif parameters["dataset"] == "SplitMNIST":
         return prepare_split_mnist_tasks(
             path_to_datasets,
