@@ -12,7 +12,7 @@ from PIL import Image
 import random
 from hypnettorch.data.mnist_data import MNISTData
 
-class RotatedMNISTList():
+class RotatedMNISTlist():
     def __init__(self, angles, data_path, use_one_hot=True,
                  validation_size=0, padding=0, trgt_padding=None,
                  show_angle_change_msg=True):

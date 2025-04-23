@@ -7,7 +7,7 @@ from hypnettorch.data.special.split_cifar import SplitCIFAR100Data
 from hypnettorch.data.special.split_mnist import get_split_mnist_handlers
 
 from DatasetHandlers.TinyImageNet import TinyImageNet
-from DatasetHandlers.RotatedMNIST import RotatedMNIST, RotatedMNISTlist
+from DatasetHandlers.RotatedMNIST import RotatedMNISTlist
 from DatasetHandlers.ImageNetSubset import SubsetImageNet
 
 
@@ -285,7 +285,7 @@ def set_hyperparameters(dataset, grid_search=False):
         else:
             # Best hyperparameters
             hyperparams = {
-                "seed": [1, 2, 3, 4, 5],
+                "seed": [1],
                 "embedding_sizes": [24],
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
@@ -297,7 +297,7 @@ def set_hyperparameters(dataset, grid_search=False):
             }
 
         hyperparams["lr_scheduler"] = False
-        hyperparams["number_of_iterations"] = 5000
+        hyperparams["number_of_iterations"] = 20
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 5000
         hyperparams["no_of_validation_samples_per_class"] = 500
