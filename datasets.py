@@ -7,7 +7,7 @@ from hypnettorch.data.special.split_cifar import SplitCIFAR100Data
 from hypnettorch.data.special.split_mnist import get_split_mnist_handlers
 
 from DatasetHandlers.TinyImageNet import TinyImageNet
-from DatasetHandlers.RotatedMNIST import RotatedMNIST
+from DatasetHandlers.RotatedMNIST import RotatedMNIST, RotatedMNISTlist
 from DatasetHandlers.ImageNetSubset import SubsetImageNet
 
 
@@ -213,7 +213,7 @@ def prepare_rotated_mnist_tasks(
     Returns a list of RotatedMNIST objects.
     """
     rotations = generate_random_rotations(input_shape, number_of_tasks)
-    return RotatedMNIST.RotatedMNISTList(
+    return RotatedMNISTlist(
         rotations,
         datasets_folder,
         use_one_hot=True,
@@ -312,6 +312,7 @@ def set_hyperparameters(dataset, grid_search=False):
         hyperparams["shape"] = (28 + 2 * hyperparams["padding"]) ** 2
         hyperparams["number_of_tasks"] = 10
         hyperparams["augmentation"] = False
+        hyperparams["use_batch_norm_memory"] = False
 
     elif dataset == "CIFAR100":
         if grid_search:
@@ -499,6 +500,7 @@ def set_hyperparameters(dataset, grid_search=False):
         hyperparams["shape"] = (28 + 2 * hyperparams["padding"]) ** 2
         hyperparams["number_of_tasks"] = 10
         hyperparams["augmentation"] = False
+        hyperparams["use_batch_norm"] = False
         
     elif dataset == "ImageNetSubset":
         if grid_search:
