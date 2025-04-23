@@ -366,13 +366,13 @@ def set_hyperparameters(dataset, grid_search=False):
     elif dataset == "TinyImageNet":
         if grid_search:
             hyperparams = {
-                "seed": [5],
-                "embedding_sizes": [48],
-                "betas": [0.01],
+                "seed": [42],
+                "embedding_sizes": [48, 96, 128],
+                "betas": [0.01, 0.05, 0.1],
                 "learning_rates": [0.001],
-                "batch_sizes": [16],
-                "hypernetworks_hidden_layers": [[100]],
-                "perturbation_epsilons": [0.01],
+                "batch_sizes": [16,32],
+                "hypernetworks_hidden_layers": [[100],[200]],
+                "perturbation_epsilons": [0.01, 0.05, 0.1, 0.5],
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
                 "optimizer": "adam",
@@ -427,6 +427,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "best_model_selection_method": "val_loss",
                 "embedding_sizes": [64],
                 "augmentation": True,
+                "use_batch_norm_memory": False,
                 "saving_folder": "./Results/grid_search/split_mnist/"}
         else:
             hyperparams = {
@@ -438,6 +439,7 @@ def set_hyperparameters(dataset, grid_search=False):
                 "perturbation_epsilons": [0.01],
                 "hypernetworks_hidden_layers": [[75, 75]],
                 "augmentation": True,
+                "use_batch_norm_memory": False,
                 "best_model_selection_method": "val_loss",
                 "saving_folder": "./Results/split_mnist_test/",
             }

@@ -9,6 +9,7 @@ from hypnettorch.hnets import HMLP
 
 from Attacks.fgsm import FGSM
 from Attacks.pgd import PGD
+from Attacks.auto_attack import AutoAttack
 
 from IntervalNets.IntervalAlexNet import IntervalAlexNet
 from IntervalNets.IntervalResNet18 import IntervalResNet18
@@ -32,8 +33,10 @@ def load_pickle_file(filepath: str, device: str):
 def get_attack_instance(attack_name: str, model, weights, epsilon: float, device: str):
     if attack_name == 'PGD':
         return PGD(model, weights, eps=epsilon, alpha=1/255, steps=1, random_start=False, device=device)
-    if attack_name == 'FGSM':
+    elif attack_name == 'FGSM':
         return FGSM(model, weights, eps=epsilon, device=device)
+    elif attack_name == 'AutoAttack':
+        return AutoAttack(model, weights, eps=epsilon, device=device)
     raise ValueError(f"Unsupported attack type: {attack_name}")
 
 def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_attack, perturbation_epsilon, attack_type=None, task_id=None):
@@ -168,7 +171,7 @@ if __name__ == "__main__":
     path_to_datasets = "./Data"
     dataset = "SplitMNIST"
     grid_search = False
-    attack_type = "PGD"
+    attack_type = "AutoAttack"
 
     hyperparams = set_hyperparameters(dataset, grid_search)
 
