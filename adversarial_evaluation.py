@@ -17,7 +17,8 @@ from IntervalNets.IntervalMLP import IntervalMLP
 from datasets import (
     set_hyperparameters,
     prepare_permuted_mnist_tasks,
-    prepare_split_mnist_tasks
+    prepare_split_mnist_tasks,
+    prepare_rotated_mnist_tasks
 )
 
 def set_seed(seed: int):
