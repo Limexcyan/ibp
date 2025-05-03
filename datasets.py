@@ -303,8 +303,6 @@ def set_hyperparameters(dataset, grid_search=False):
         hyperparams["no_of_validation_samples_per_class"] = 500
         hyperparams["target_hidden_layers"] = [1000, 1000]
         hyperparams["target_network"] = "IntervalMLP"
-        hyperparams["resnet_number_of_layer_groups"] = None
-        hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
         hyperparams["use_batch_norm"] = False
         # Directly related to the MNIST dataset
@@ -324,8 +322,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "batch_sizes": [32],
                 "hypernetworks_hidden_layers": [[100]],
                 "perturbation_epsilons": [0.01],
-                "resnet_number_of_layer_groups": 3,
-                "resnet_widening_factor": 2,
                 "optimizer": "adam",
                 "use_batch_norm": True,
                 "target_network": "AlexNet",
@@ -342,8 +338,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "hypernetworks_hidden_layers": [[100]],
                 "perturbation_epsilons": [0.01],
                 "use_batch_norm": True,
-                "resnet_number_of_layer_groups": 3,
-                "resnet_widening_factor": 2,
                 "number_of_epochs": 200,
                 "target_network": "AlexNet",
                 "optimizer": "adam",
@@ -374,8 +368,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "batch_sizes": [16,32],
                 "hypernetworks_hidden_layers": [[100],[200]],
                 "perturbation_epsilons": [0.01, 0.05, 0.1, 0.5],
-                "resnet_number_of_layer_groups": 3,
-                "resnet_widening_factor": 2,
                 "optimizer": "adam",
                 "use_batch_norm": True,
                 "target_network": "ResNet",
@@ -393,8 +385,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "learning_rates": [0.0001],
                 "hypernetworks_hidden_layers": [[100, 100]],
                 "use_batch_norm": True,
-                "resnet_number_of_layer_groups": 3,
-                "resnet_widening_factor": 2,
                 "number_of_epochs": 10,
                 "target_network": "ResNet",
                 "optimizer": "adam",
@@ -447,8 +437,6 @@ def set_hyperparameters(dataset, grid_search=False):
 
         hyperparams["lr_scheduler"] = False
         hyperparams["target_network"] = "IntervalMLP"
-        hyperparams["resnet_number_of_layer_groups"] = None
-        hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
         hyperparams["number_of_iterations"] = 2000
         hyperparams["number_of_epochs"] = None
@@ -494,8 +482,6 @@ def set_hyperparameters(dataset, grid_search=False):
         hyperparams["no_of_validation_samples_per_class"] = 500
         hyperparams["target_hidden_layers"] = [1000, 1000]
         hyperparams["target_network"] = "IntervalMLP"
-        hyperparams["resnet_number_of_layer_groups"] = None
-        hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
         hyperparams["use_batch_norm"] = False
         hyperparams["padding"] = 2
@@ -514,8 +500,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "learning_rates": [0.001],
                 "hypernetworks_hidden_layers": [[100]],
                 "use_batch_norm": True,
-                "resnet_number_of_layer_groups": 3,
-                "resnet_widening_factor": 2,
                 "number_of_epochs": 10,
                 "target_network": "ResNet",
                 "optimizer": "adam",
