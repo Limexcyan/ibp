@@ -507,25 +507,24 @@ def set_hyperparameters(dataset, grid_search=False):
     elif dataset == "ImageNetSubset":
         if grid_search:
             hyperparams = {
-                "seed": [5],
+                "seed": [42],
                 "embedding_sizes": [128],
-                "betas": [0.1],
-                "batch_sizes": [16],
+                "betas": [0.1, 0.05, 0.01],
+                "batch_sizes": [128],
                 "learning_rates": [0.001],
-                "hypernetworks_hidden_layers": [[100]],
+                "hypernetworks_hidden_layers": [[100], [200]],
                 "use_batch_norm": True,
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
-                "number_of_epochs": 10,
+                "number_of_epochs": 50,
                 "target_network": "ResNet",
                 "optimizer": "adam",
                 "augmentation": True,
                 "shape": 64,
                 "target_hidden_layers": None,
-                "saving_folder": f"./Results/ImageNetSubset/",
-                "perturbation_epsilons": [0.01],
+                "saving_folder": f"/shared/results/common/gmhelm/ibp/res1/",
+                "perturbation_epsilons": [0.01, 0.05, 0.1, 0.5],
             }
-            
         hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples"] = 1000

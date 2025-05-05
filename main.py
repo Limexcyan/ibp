@@ -468,8 +468,8 @@ def main_running_experiments(path_to_datasets, parameters):
     return hypernetwork, target_network, dataframe
 
 if __name__ == "__main__":
-    path_to_datasets = "./Data"
-    dataset = "TinyImageNet"
+    path_to_datasets = "/shared/sets/datasets/image-net-subset/"
+    dataset = "ImageNetSubset"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'RotatedMNIST', 'ImageNetSubset'
     create_grid_search = True
 

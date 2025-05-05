@@ -1,14 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name=split_mnist_run
-#SBATCH --mem=4G
-#SBATCH --cpus-per-tasks=2
-#SBATCH --partition=student
+#SBATCH --job-name=subset_imagenet_ibp_run_emb_128
+#SBATCH --mem=16G
+#SBATCH --cpus-per-task=4
+#SBATCH --gpus=1
+#SBATCH -p rtx2080
+#SBATCH --qos=big
 
 
-# /$HOME/miniconda3/envs/hypnettorch/bin/python /$HOME/ibp/main.py
-cd $HOME/ibp
+cd repo/ibp
 echo "--- test run ---"
-conda activate hypnettorch
-
+#conda activate hypnettorch
+source activate hypnettorch-3
 echo "--- running main.py---"
 python -u main.py
