@@ -452,8 +452,9 @@ def main_running_experiments(path_to_datasets, parameters):
         f'{parameters["optimizer"]};'
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
-        f'{parameters["perturbation_epsilon"]};'
+        f'{parameters["beta"]};'
         f"{np.mean(accuracies)};{np.std(accuracies)};"
+        f'{parameters["perturbation_epsilon"]};'
         f"{elapsed_time}"
     )
     append_row_to_file(
