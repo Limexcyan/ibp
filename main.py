@@ -39,7 +39,7 @@ def append_row_to_file(filename, elements):
 
 
 def write_pickle_file(filename, object_to_save):
-    torch.save(object_to_save, f"{filename}.pt")
+    torch.save(object_to_save.state_dict(), f"{filename}.pt")
 
 
 @retry((OSError, IOError))
