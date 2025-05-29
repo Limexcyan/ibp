@@ -35,16 +35,17 @@ def load_pickle_file(filepath: str, device: str):
     return torch.load(filepath, map_location=torch.device(device))
        
 
-def get_attack_instance(attack_name: str, model, weights, epsilon: float, device: str):
+def get_attack_instance(attack_name: str, model, weights, epsilon: float, device: str, alpha_pgd: float = None):
     if attack_name == 'PGD':
-        return PGD(model, weights, eps=epsilon, alpha=1/255, steps=1, random_start=False, device=device)
+        return PGD(model, weights, eps=epsilon, alpha=alpha_pgd, steps=1, random_start=False, device=device)
     elif attack_name == 'FGSM':
         return FGSM(model, weights, eps=epsilon, device=device)
     elif attack_name == 'AutoAttack':
         return AutoAttack(model, weights, eps=epsilon, device=device)
     raise ValueError(f"Unsupported attack type: {attack_name}")
 
-def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_attack, perturbation_epsilon, attack_type=None, task_id=None):
+def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_attack, alpha_pgd=None, 
+                   attack_type=None, task_id=None):
     model = deepcopy(model).eval()
 
     input_data = getattr(data, f'get_{dataset_split}_inputs')()
@@ -56,22 +57,22 @@ def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_atta
     labels = y.argmax(dim=1)
 
     condition = task_id if parameters.get("use_batch_norm") else None
-    logits, _ = model(x, epsilon=perturbation_epsilon, weights=weights, condition=condition)
+    logits, _ = model(x, epsilon=0.0, weights=weights, condition=condition)
     preds = logits.argmax(dim=1)
 
     if not attack_type or attack_type.lower() == 'none':
         acc = 100 * (preds == labels).float().mean()
-        print(f"Task {task_id} | Clean Accuracy: {acc:.2f}%")
+        print(f"Task {task_id} | Clean Accuracy: {acc:.5f}%")
         return acc
 
-    attack = get_attack_instance(attack_type, model, weights, epsilon_attack, parameters["device"])
+    attack = get_attack_instance(attack_type, model, weights, epsilon_attack, parameters["device"], alpha_pgd)
     adv_x = attack.forward(x, labels, task_id)
 
     adv_logits, _ = model(adv_x, epsilon=0.0, weights=weights, condition=condition)
     adv_preds = adv_logits.argmax(dim=1)
 
     acc = 100 * (adv_preds == labels).float().mean()
-    print(f"Task {task_id} | Adversarial Accuracy ({attack_type}): {acc:.2f}%")
+    print(f"Task {task_id} | Adversarial Accuracy ({attack_type}): {acc:.5f}%")
     return acc
 
 def prepare_dataset(parameters, path_to_datasets):
@@ -158,7 +159,7 @@ def create_hypernetwork(parameters, param_shapes):
         num_cond_embs=parameters["number_of_tasks"]
     ).to(parameters["device"])
 
-def run_experiments(path_to_datasets, parameters, hypernet_path, epsilon_attack, attack_type=None):
+def run_experiments(path_to_datasets, parameters, hypernet_path, epsilon_attack, alpha_pgd=None, attack_type=None):
     print(f"Running experiments for {parameters['dataset']} with attack type: {attack_type}")
     datasets = prepare_dataset(parameters, path_to_datasets)
     output_size = datasets[0].get_train_outputs()[0].shape[0]
@@ -184,11 +185,11 @@ def run_experiments(path_to_datasets, parameters, hypernet_path, epsilon_attack,
             parameters,
             dataset_split='test',
             epsilon_attack=epsilon_attack,
-            perturbation_epsilon=parameters["perturbation_epsilon"],
+            alpha_pgd=alpha_pgd,
             attack_type=attack_type,
             task_id=task_id
         )
-        print(f"Task {task_id} | Accuracy: {acc:.2f}%")
+        print(f"Task {task_id} | Accuracy: {acc:.5f}%")
         results.append({"tested_task": task_id, "accuracy": acc.item()})
 
     df = pd.DataFrame(results).astype({"tested_task": int})
@@ -197,7 +198,8 @@ def run_experiments(path_to_datasets, parameters, hypernet_path, epsilon_attack,
     print(f"Results saved to {results_path}")
     return df
 
-def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, epsilon_attack, attack_type="FGSM", seeds=list(range(5))):
+def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, epsilon_attack, 
+                       alpha_pgd, attack_type="FGSM", seeds=list(range(5))):
     grid_search = False
     hyperparams = set_hyperparameters(dataset, grid_search)
     for seed in seeds:
@@ -232,6 +234,7 @@ def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, 
             parameters=parameters,
             hypernet_path=f"{hypernet_path}/{seed}/hnet.pt",
             epsilon_attack=epsilon_attack,
+            alpha_pgd=alpha_pgd,
             attack_type=attack_type
         )
     # Aggregate and save results
@@ -259,6 +262,7 @@ if __name__ == "__main__":
         dataset="CIFAR100",
         path_to_datasets="./Data",
         hypernet_model_path_template="./Results/SplitCIFAR100/",
-        epsilon_attack=4/255.0,
-        attack_type="FGSM"
+        epsilon_attack=1/255.0,
+        alpha_pgd=4/255.0,
+        attack_type="PGD",
     )
