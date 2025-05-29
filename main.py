@@ -39,7 +39,7 @@ def append_row_to_file(filename, elements):
 
 
 def write_pickle_file(filename, object_to_save):
-    torch.save(object_to_save, f"{filename}.pt")
+    torch.save(object_to_save.state_dict(), f"{filename}.pt")
 
 
 @retry((OSError, IOError))
@@ -446,8 +446,6 @@ def main_running_experiments(path_to_datasets, parameters):
         f'{str(parameters["hypernetwork_hidden_layers"]).replace(" ", "")};'
         f'{parameters["target_network"]};'
         f'{str(parameters["target_hidden_layers"]).replace(" ", "")};'
-        f'{parameters["resnet_number_of_layer_groups"]};'
-        f'{parameters["resnet_widening_factor"]};'
         f'{parameters["best_model_selection_method"]};'
         f'{parameters["optimizer"]};'
         f'{parameters["activation_function"]};'
@@ -485,7 +483,7 @@ if __name__ == "__main__":
     header = (
         "dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;"
         "target_network;target_hidden_layers;"
-        "layer_groups;widening;final_model;optimizer;"
+        "final_model;optimizer;"
         "hypernet_activation_function;learning_rate;batch_size;beta;"
         "mean_accuracy;std_accuracy;peturbated_epsilon;elapsed_time"
     )
@@ -520,8 +518,6 @@ if __name__ == "__main__":
             "activation_function": hyperparameters["activation_function"],
             "target_network": hyperparameters["target_network"],
             "target_hidden_layers": hyperparameters["target_hidden_layers"],
-            "resnet_number_of_layer_groups": hyperparameters["resnet_number_of_layer_groups"],
-            "resnet_widening_factor": hyperparameters["resnet_widening_factor"],
             "learning_rate": learning_rate,
             "best_model_selection_method": hyperparameters["best_model_selection_method"],
             "lr_scheduler": hyperparameters["lr_scheduler"],
