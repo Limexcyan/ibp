@@ -440,4 +440,43 @@ class IntervalAvgPool2d:
         return new_mu, new_eps
 
     
+class IntervalDropout:
+    """
+    Interval version of Dropout.
+    See: https://pytorch.org/docs/stable/generated/torch.nn.functional.dropout.html
+    """
+    def __init__(self, p=0.5, inplace=False):
+        self.p = p
+        self.inplace = inplace
 
+    def forward(self, mu, eps, device="cuda") -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Applies interval dropout.
+
+        Parameters:
+        ----------
+            mu: torch.Tensor
+                Midpoint of the interval.
+            eps: torch.Tensor
+                Radius of the interval.
+            device: str
+                Device for computation ("cpu" or "cuda").
+
+        Returns:
+        --------
+            new_mu: torch.Tensor
+                'mu' after dropout.
+            new_eps: torch.Tensor
+                'eps' after dropout.
+        """
+        mu = mu.to(device)
+        eps = eps.to(device)
+        z_lower, z_upper = mu - eps, mu + eps
+
+        mask = (torch.rand_like(mu) > self.p).float()
+        z_lower = z_lower * mask / (1 - self.p)
+        z_upper = z_upper * mask / (1 - self.p)
+
+        new_mu = (z_lower + z_upper) / 2.0
+        new_eps = (z_upper - z_lower) / 2.0
+        return new_mu, new_eps

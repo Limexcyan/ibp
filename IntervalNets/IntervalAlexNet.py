@@ -1,5 +1,4 @@
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 
 from hypnettorch.mnets.classifier_interface import Classifier
@@ -76,16 +75,12 @@ class IntervalAlexNet(Classifier):
                 [64],
                 [128, 64, 3, 3],            
                 [128],
-                [128, 128, 3, 3],           
-                [128],
-                [128, 128, 3, 3],           
-                [128],
+                #[128, 128, 3, 3],           
+                #[128],
+                #[128, 128, 3, 3],           
+                #[128],
 
-                [512, 128 * 2 * 2],         
-                [512],
-                [512, 512],                 
-                [512],
-                [num_classes, 512],        
+                [num_classes, 2048],        
                 [num_classes]
             ]
         }
@@ -130,7 +125,7 @@ class IntervalAlexNet(Classifier):
             start_idx = len(_architectures[self.architecture])
 
             bn_sizes = [
-                32, 64, 128, 128, 128, 512, 512
+                32, 64, 128, #128, 128, 512, 512
             ]
 
             bn_layers = list(range(start_idx, start_idx + len(bn_sizes)))
@@ -160,39 +155,33 @@ class IntervalAlexNet(Classifier):
 
         self.layers = [
             IntervalConv2d(3, 32, 3, stride=2, padding=1),
-            IntervalMaxPool2d(2),
+            IntervalAvgPool2d(2),
             IntervalReLU(),
             IntervalBatchNorm(),
+            # IntervalDropout(0.2),
 
             IntervalConv2d(32, 64, 3, padding=1),
-            IntervalMaxPool2d(2),
+            IntervalAvgPool2d(2),
             IntervalReLU(),
             IntervalBatchNorm(),
+            # IntervalDropout(0.2),
 
             IntervalConv2d(64, 128, 3, padding=1),
             IntervalReLU(),
             IntervalBatchNorm(),
-
-            IntervalConv2d(128, 128, 3, padding=1),
-            IntervalReLU(),
-            IntervalBatchNorm(),
-
-            IntervalConv2d(128, 128, 3, padding=1),
-            IntervalMaxPool2d(2),
-            IntervalReLU(),
-            IntervalBatchNorm(),
+            # IntervalDropout(0.5),
 
             IntervalFlatten(),
 
-            IntervalLinear(128 * 2 * 2, 512),
-            IntervalReLU(),
-            IntervalBatchNorm(),
+            # IntervalLinear(128 * 2 * 2, 512),
+            # IntervalReLU(),
+            # IntervalBatchNorm(),
 
-            IntervalLinear(512, 512),
-            IntervalReLU(),
-            IntervalBatchNorm(),
+            # IntervalLinear(512, 512),
+            # IntervalReLU(),
+            # IntervalBatchNorm(),
 
-            IntervalLinear(512, num_classes)
+            IntervalLinear(2048, num_classes)
         ]
 
         self._layer_weight_tensors = nn.ParameterList()
@@ -284,7 +273,7 @@ class IntervalAlexNet(Classifier):
                 )
                 bn_idx += 1
                 
-            elif isinstance(layer, (IntervalReLU, IntervalMaxPool2d, IntervalFlatten)):
+            elif isinstance(layer, (IntervalReLU, IntervalAvgPool2d, IntervalFlatten)):
                 mu, eps = layer.forward(mu, eps, device=device)
         return mu, eps
 
