@@ -21,7 +21,8 @@ from datasets import (
     prepare_permuted_mnist_tasks,
     prepare_split_mnist_tasks,
     prepare_rotated_mnist_tasks,
-    prepare_split_cifar100_tasks
+    prepare_split_cifar100_tasks,
+    prepare_imagenet_subset_tasks
 )
 
 def set_seed(seed: int):
@@ -104,6 +105,13 @@ def prepare_dataset(parameters, path_to_datasets):
             path_to_datasets,
             validation_size=parameters["no_of_validation_samples"],
             use_augmentation=parameters["augmentation"],
+        )
+    elif parameters["dataset"] == "ImageNetSubset":
+        return prepare_imagenet_subset_tasks(
+            path_to_datasets,
+            validation_size=parameters["no_of_validation_samples"],
+            use_augmentation=parameters["augmentation"],
+            input_shape=parameters["input_shape"],
         )
     else:
         raise ValueError(f"Unknown dataset type: {parameters['dataset']}")
