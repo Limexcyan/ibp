@@ -79,8 +79,9 @@ class IntervalAlexNet(Classifier):
                 #[128],
                 #[128, 128, 3, 3],           
                 #[128],
-
-                [num_classes, 2048],        
+                [100, 128],        
+                [100],
+                [num_classes, 100],        
                 [num_classes]
             ]
         }
@@ -125,7 +126,7 @@ class IntervalAlexNet(Classifier):
             start_idx = len(_architectures[self.architecture])
 
             bn_sizes = [
-                32, 64, 128, #128, 128, 512, 512
+                32, 64, 128, 100, #512, 512
             ]
 
             bn_layers = list(range(start_idx, start_idx + len(bn_sizes)))
@@ -154,34 +155,34 @@ class IntervalAlexNet(Classifier):
         )
 
         self.layers = [
-            IntervalConv2d(3, 32, 3, stride=2, padding=1),
-            IntervalAvgPool2d(2),
+            IntervalConv2d(3, 32, 4),
+            # IntervalAvgPool2d(2),
             IntervalReLU(),
             IntervalBatchNorm(),
-            # IntervalDropout(0.2),
 
-            IntervalConv2d(32, 64, 3, padding=1),
-            IntervalAvgPool2d(2),
+            IntervalConv2d(32, 64, 3),
+            # IntervalAvgPool2d(2),
             IntervalReLU(),
             IntervalBatchNorm(),
-            # IntervalDropout(0.2),
 
-            IntervalConv2d(64, 128, 3, padding=1),
+            IntervalConv2d(64, 128, 2),
+            # IntervalAvgPool2d(2),
             IntervalReLU(),
             IntervalBatchNorm(),
-            # IntervalDropout(0.5),
+
+            IntervalAvgPool2d(16),
 
             IntervalFlatten(),
 
-            # IntervalLinear(128 * 2 * 2, 512),
-            # IntervalReLU(),
-            # IntervalBatchNorm(),
+            IntervalLinear(128, 100),
+            IntervalReLU(),
+            IntervalBatchNorm(),
 
             # IntervalLinear(512, 512),
             # IntervalReLU(),
             # IntervalBatchNorm(),
 
-            IntervalLinear(2048, num_classes)
+            IntervalLinear(100, num_classes)
         ]
 
         self._layer_weight_tensors = nn.ParameterList()
