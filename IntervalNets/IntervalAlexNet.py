@@ -156,21 +156,19 @@ class IntervalAlexNet(Classifier):
 
         self.layers = [
             IntervalConv2d(3, 32, 4),
-            # IntervalAvgPool2d(2),
+            IntervalAvgPool2d(2),
             IntervalReLU(),
             IntervalBatchNorm(),
 
             IntervalConv2d(32, 64, 3),
-            # IntervalAvgPool2d(2),
+            IntervalAvgPool2d(2),
             IntervalReLU(),
             IntervalBatchNorm(),
 
             IntervalConv2d(64, 128, 2),
-            # IntervalAvgPool2d(2),
+            IntervalAvgPool2d(4),
             IntervalReLU(),
             IntervalBatchNorm(),
-
-            IntervalAvgPool2d(16),
 
             IntervalFlatten(),
 
