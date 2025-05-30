@@ -312,10 +312,8 @@ class IntervalBatchNorm:
         weight = weight.to(device)
         bias = bias.to(device)
 
-        z_lower, z_upper = mu-eps, mu+eps
-
-        z_lower = batch_norm_forward(
-            z_lower,
+        new_mu = batch_norm_forward(
+            mu,
             running_mean=running_mean,
             running_var=running_var,
             weight=weight,
@@ -323,83 +321,14 @@ class IntervalBatchNorm:
             stats_id=stats_id
         )
 
-        z_upper = batch_norm_forward(
-            z_upper,
-            running_mean=running_mean,
+        new_eps = F.batch_norm(
+            input=eps,
+            running_mean=torch.zeros(eps.shape[1], device=device),
             running_var=running_var,
-            weight=weight,
-            bias=bias,
-            stats_id=stats_id
+            weight=weight.abs(),
+            bias=torch.zeros_like(bias, device=device),
+            training=True
         )
-
-        # It's just possible that the batchnorm's scale is negative.
-        z_lower, z_upper = torch.minimum(z_lower, z_upper), torch.maximum(z_lower, z_upper)
-        new_mu = (z_lower + z_upper) / 2.0
-        new_eps = (z_upper - z_lower) / 2.0
-
-        return new_mu, new_eps
-    
-
-class IntervalMaxPool2d:
-    """
-    Interval version of MaxPool2d. Description of the arguments is here:
-    https://pytorch.org/docs/stable/generated/torch.nn.functional.max_pool2d.html
-    """
-    def __init__(self, kernel_size, stride=None, padding=0, dilation=1) -> None:
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.padding = padding
-        self.dilation = dilation
-
-    def forward(self, mu, eps, device: str = "cuda") -> Tuple[torch.Tensor,torch.Tensor]:
-        """
-        Applies interval MaxPool.
-
-        Parameters:
-        ----------
-            mu: torch.Tensor
-                Midpoint of the interval. 
-
-            eps: torch.Tensor
-                Radii of the interval.
-
-            device: str
-                A string representing the device on which
-                calculations will be performed. Possible
-                values are "cpu" or "cuda". It is used just for
-                convenience to simplify a forward method of NNs.
-        
-        Returns:
-        --------
-            new_mu: torch.Tensor
-                'mu' after MaxPool2d.
-            
-            new_eps: torch.Tensor
-                'eps' after MaxPool2d.
-
-        """
-
-        mu = mu.to(device)
-        eps = eps.to(device)
-
-        z_lower, z_upper = mu - eps, mu + eps
-        z_lower = F.max_pool2d(
-            z_lower,
-            self.kernel_size,
-            self.stride,
-            self.padding,
-            self.dilation
-        )
-
-        z_upper = F.max_pool2d(
-            z_upper,
-            self.kernel_size,
-            self.stride,
-            self.padding,
-            self.dilation
-        )
-
-        new_mu, new_eps = (z_upper+z_lower)/2.0, (z_upper-z_lower)/2.0
 
         return new_mu, new_eps
     
@@ -435,8 +364,24 @@ class IntervalAvgPool2d:
         """
         mu = mu.to(device)
         eps = eps.to(device)
-        new_mu = F.avg_pool2d(mu, self.kernel_size, self.stride, self.padding)
-        new_eps = F.avg_pool2d(eps, self.kernel_size, self.stride, self.padding)
+
+        z_lower, z_upper = mu - eps, mu + eps
+        z_lower = F.avg_pool2d(
+            z_lower,
+            self.kernel_size,
+            self.stride,
+            self.padding,
+        )
+
+        z_upper = F.avg_pool2d(
+            z_upper,
+            self.kernel_size,
+            self.stride,
+            self.padding,
+        )
+
+        new_mu, new_eps = (z_upper+z_lower)/2.0, (z_upper-z_lower)/2.0
+
         return new_mu, new_eps
 
     
