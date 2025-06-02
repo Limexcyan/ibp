@@ -409,7 +409,7 @@ def set_hyperparameters(dataset, grid_search=False):
         elif hyperparams["target_network"] == "MLP":
             hyperparams["shape"] = 12288
             hyperparams["target_hidden_layers"] = [1000, 1000]
-        hyperparams["number_of_tasks"] = 1
+        hyperparams["number_of_tasks"] = 40
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 
