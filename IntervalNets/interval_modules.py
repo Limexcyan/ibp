@@ -285,6 +285,9 @@ class IntervalBatchNorm:
 
         lower_bn, upper_bn = x_cat_bn.chunk(2, dim=0)
 
+        # Scale may be negative
+        lower_bn, upper_bn = torch.minimum(lower_bn, upper_bn), torch.maximum(lower_bn, upper_bn)
+
         new_mu = (upper_bn + lower_bn) / 2
         new_eps = (upper_bn - lower_bn) / 2
 
