@@ -388,7 +388,8 @@ def set_hyperparameters(dataset, grid_search=False):
                 "betas": [1],
                 "batch_sizes": [16],
                 "learning_rates": [0.0001],
-                "hypernetworks_hidden_layers": [[100, 100]],
+                "hypernetworks_hidden_layers": [[100, 50]],
+                 "perturbation_epsilons": [0.01],
                 "lambdas": [0.1],
                 "use_batch_norm": True,
                 "number_of_epochs": 10,
@@ -408,7 +409,7 @@ def set_hyperparameters(dataset, grid_search=False):
         elif hyperparams["target_network"] == "MLP":
             hyperparams["shape"] = 12288
             hyperparams["target_hidden_layers"] = [1000, 1000]
-        hyperparams["number_of_tasks"] = 40
+        hyperparams["number_of_tasks"] = 1
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 
@@ -503,22 +504,22 @@ def set_hyperparameters(dataset, grid_search=False):
     elif dataset == "ImageNetSubset":
         if grid_search:
             hyperparams = {
-                "seed": [5],
-                "embedding_sizes": [128],
-                "betas": [0.1],
-                "batch_sizes": [16],
+                "seed": [42],
+                "embedding_sizes": [128,256,512],
+                "betas": [0.01, 0.05, 0.1],
+                "batch_sizes": [32],
                 "learning_rates": [0.001],
-                "hypernetworks_hidden_layers": [[100]],
-                "lambdas": [0.1],
+                "hypernetworks_hidden_layers": [[100, 50], [200, 50]],
+                "lambdas": [0.0, 0.1, 0.01],
                 "use_batch_norm": True,
-                "number_of_epochs": 10,
+                "number_of_epochs": 200,
                 "target_network": "ResNet",
                 "optimizer": "adam",
                 "augmentation": True,
                 "shape": 64,
                 "target_hidden_layers": None,
                 "saving_folder": f"./Results/ImageNetSubset/",
-                "perturbation_epsilons": [0.01],
+                "perturbation_epsilons": [2/255.0, 1/255.0],
             }
             
         hyperparams["lr_scheduler"] = True
