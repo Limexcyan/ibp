@@ -195,6 +195,11 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         optimizer.zero_grad()
         hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
 
+        for par in hnet_weights:
+            print(par.shape)
+
+        exit(1)
+
         base_eps = parameters["perturbation_epsilon"]
         total_iterations = parameters["number_of_iterations"]
         inv_total_iterations = 1 / total_iterations
@@ -331,8 +336,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
                 use_fc_bias=parameters["use_bias"],
                 bottleneck_blocks=False,
                 num_classes=output_shape,
-                num_feature_maps=[16, 32, 64, 128],
-                blocks_per_group=[2, 2, 2, 2],
+                num_feature_maps=[8, 16, 32, 64],
+                blocks_per_group=[2, 2, 2, 1],
                 no_weights=True,
                 use_batch_norm=parameters["use_batch_norm"],
                 projection_shortcut=True,
@@ -471,7 +476,7 @@ def main_running_experiments(path_to_datasets, parameters):
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "CIFAR100"
+    dataset = "TinyImageNet"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'RotatedMNIST', 'ImageNetSubset'
     create_grid_search = False
 
