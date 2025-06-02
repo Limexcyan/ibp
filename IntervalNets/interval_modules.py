@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from typing import Tuple
+from typing import Tuple, Callable
 
 class IntervalLinear:
     """
@@ -225,86 +225,68 @@ class IntervalBatchNorm:
     def __init__(self) -> None:
         pass
 
-    def forward(self, mu, eps, weight, bias, running_mean, running_var, stats_id, 
-                batch_norm_forward, device="cuda") -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, mu: torch.Tensor,
+                eps: torch.Tensor,
+                weight: torch.Tensor,
+                bias: torch.Tensor,
+                running_mean: torch.Tensor,
+                running_var: torch.Tensor,
+                stats_id: int,
+                batch_norm_forward: Callable,
+                device: str = "cuda") -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Applies interval version of a batch normalization layer. The implmentation needs to
-        be compatible with hypernetworks.
+        Applies interval batch normalization using endpoint propagation and shared batch stats.
 
         Parameters:
         ----------
             mu: torch.Tensor
-                Midpoint of the interval. 
-
+                Midpoint of the interval.
             eps: torch.Tensor
-                Radii of the interval.
-
+                Radius of the interval.
             weight: torch.Tensor
-                Learnable weight of the affine transformation.
-
+                Affine scale parameter (gamma).
             bias: torch.Tensor
-                Learnable bias of the affine transformation.
-
+                Affine shift parameter (beta).
             running_mean: torch.Tensor
-                Running means calculated over batches of data.
-
+                Running mean for inference (not used here).
             running_var: torch.Tensor
-                Running variances calculated over batches of data.
-
+                Running variance for inference (not used here).
             stats_id: int
-                Identifier of statistics to be used.
-
+                Identifier for stats tracking in custom BN layers.
             batch_norm_forward: Callable
-                Forward method of 'hypnettorch.utils.batchnorm_layer.BatchNormLayer'.
-            
+                Callable to apply batch norm (should accept training=True).
             device: str
-                A string representing the device on which
-                calculations will be performed. Possible
-                values are "cpu" or "cuda".
+                Device ("cpu" or "cuda").
 
         Returns:
         --------
             new_mu: torch.Tensor
-                'mu' after the BatchNorm transformation.
-            
+                Transformed midpoint.
             new_eps: torch.Tensor
-                'eps' after the BatchNorm transformation.
+                Transformed radius (guaranteed ≥ 0).
         """
         mu = mu.to(device)
         eps = eps.to(device)
         weight = weight.to(device)
         bias = bias.to(device)
 
-        new_mu = batch_norm_forward(
-            mu,
+        lower = mu - eps
+        upper = mu + eps
+
+        x_cat = torch.cat([lower, upper], dim=0) 
+        x_cat_bn = batch_norm_forward(
+            x_cat,
             running_mean=running_mean,
             running_var=running_var,
             weight=weight,
             bias=bias,
-            stats_id=stats_id
+            stats_id=stats_id,
         )
 
-        # Use batch statistics if running stats are not provided
-        if running_var is None:
-            if mu.dim() == 4:
-                var = mu.var(dim=(0, 2, 3), keepdim=False, unbiased=False)
-            elif mu.dim() == 2:  # Linear (N, F)
-                var = mu.var(dim=0, unbiased=False)
-            else:
-                raise ValueError(f"Unsupported input dim {mu.dim()} for IntervalBatchNorm.")
+        lower_bn, upper_bn = x_cat_bn.chunk(2, dim=0)
 
-            running_var = var.detach()
-
-
-        # IBP transformation for eps
-        denom = torch.sqrt(running_var + 1e-5)
-        scale = weight.abs() / denom
-
-        # Match dimensions for broadcasting
-        shape = [1, -1] + [1] * (eps.dim() - 2)  # e.g., [1, C, 1, 1] for conv, [1, F] for linear
-        scale = scale.view(*shape).to(device)
-
-        new_eps = eps * scale
+        new_mu = (upper_bn + lower_bn) / 2
+        new_eps = (upper_bn - lower_bn) / 2
 
         return new_mu, new_eps
 
