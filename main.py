@@ -195,10 +195,6 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         optimizer.zero_grad()
         hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
 
-        for par in hnet_weights:
-            print(par.shape)
-
-        exit(1)
 
         base_eps = parameters["perturbation_epsilon"]
         total_iterations = parameters["number_of_iterations"]
