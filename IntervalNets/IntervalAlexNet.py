@@ -5,7 +5,7 @@ from hypnettorch.mnets.classifier_interface import Classifier
 from hypnettorch.mnets.mnet_interface import MainNetInterface
 
 from IntervalNets.interval_modules import *
-
+from IntervalNets.crown_modules import *
 
 class IntervalAlexNet(Classifier):
     """Implementation of interval AlexNet.
@@ -75,10 +75,6 @@ class IntervalAlexNet(Classifier):
                 [64],
                 [128, 64, 3, 3],            
                 [128],
-                #[128, 128, 3, 3],           
-                #[128],
-                #[128, 128, 3, 3],           
-                #[128],
                 [100, 128],        
                 [100],
                 [num_classes, 100],        
@@ -156,29 +152,25 @@ class IntervalAlexNet(Classifier):
 
         self.layers = [
             IntervalConv2d(3, 32, 4),
-            IntervalAvgPool2d(2),
             IntervalReLU(),
             IntervalBatchNorm(),
+            IntervalAvgPool2d(2),
 
             IntervalConv2d(32, 64, 3),
-            IntervalAvgPool2d(2),
             IntervalReLU(),
             IntervalBatchNorm(),
+            IntervalAvgPool2d(2),
 
             IntervalConv2d(64, 128, 2),
-            IntervalAvgPool2d(4),
             IntervalReLU(),
             IntervalBatchNorm(),
+            IntervalAvgPool2d(4),
 
             IntervalFlatten(),
 
             IntervalLinear(128, 100),
             IntervalReLU(),
             IntervalBatchNorm(),
-
-            # IntervalLinear(512, 512),
-            # IntervalReLU(),
-            # IntervalBatchNorm(),
 
             IntervalLinear(100, num_classes)
         ]
@@ -272,7 +264,7 @@ class IntervalAlexNet(Classifier):
                 )
                 bn_idx += 1
                 
-            elif isinstance(layer, (IntervalReLU, IntervalAvgPool2d, IntervalFlatten)):
+            elif isinstance(layer, (IntervalAvgPool2d, IntervalFlatten, IntervalReLU)):
                 mu, eps = layer.forward(mu, eps, device=device)
         return mu, eps
 

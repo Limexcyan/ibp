@@ -76,55 +76,18 @@ class IntervalLinear:
         return new_mu, new_eps
     
 class IntervalReLU:
-    """
-    Interval version of ReLU activation function
-
-    For description of the attributes please see the docs of
-    https://pytorch.org/docs/stable/generated/torch.nn.ReLU.html
-    """
-
-    def __init__(self, inplace: bool = False):
-       
-       self.inplace = inplace
-
-    def forward(self, mu: torch.Tensor, 
-                eps: torch.Tensor,
-                device: str = "cuda") -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Applies interval version of a ReLU transformation.
-
-        Parameters:
-        ----------
-            mu: torch.Tensor
-                Midpoint of the interval. 
-
-            eps: torch.Tensor
-                Radii of the interval.
-
-            device: str
-                A string representing the device on which
-                calculations will be performed. Possible
-                values are "cpu" or "cuda".
-
-        Returns:
-        --------
-            new_mu: torch.Tensor
-                'mu' after ReLU transformation.
-            
-            new_eps: torch.Tensor
-                'eps' after ReLU transformation.
-        """
-
-        # Send tensors into devices
-        mu  = mu.to(device)
+    def __init__(self):
+        pass
+    
+    def forward(self, mu: torch.Tensor, eps: torch.Tensor, device: str = "cuda") -> Tuple[torch.Tensor, torch.Tensor]:
+        mu = mu.to(device)
         eps = eps.to(device)
 
-        z_l, z_u = mu - eps, mu + eps
-        z_l, z_u = F.relu(z_l), F.relu(z_u)
+        z_l, z_u = F.relu(mu-eps), F.relu(mu+eps)
+        mu, eps = (z_l+z_u)/2.0, (z_u-z_l)/2.0
 
-        new_mu, new_eps  = (z_u + z_l) / 2, (z_u - z_l) / 2
+        return mu, eps
 
-        return new_mu, new_eps
     
 class IntervalConv2d:
     """
@@ -321,16 +284,30 @@ class IntervalBatchNorm:
             stats_id=stats_id
         )
 
-        new_eps = F.batch_norm(
-            input=eps,
-            running_mean=torch.zeros(eps.shape[1], device=device),
-            running_var=running_var,
-            weight=weight.abs(),
-            bias=torch.zeros_like(bias, device=device),
-            training=True
-        )
+        # Use batch statistics if running stats are not provided
+        if running_var is None:
+            if mu.dim() == 4:
+                var = mu.var(dim=(0, 2, 3), keepdim=False, unbiased=False)
+            elif mu.dim() == 2:  # Linear (N, F)
+                var = mu.var(dim=0, unbiased=False)
+            else:
+                raise ValueError(f"Unsupported input dim {mu.dim()} for IntervalBatchNorm.")
+
+            running_var = var.detach()
+
+
+        # IBP transformation for eps
+        denom = torch.sqrt(running_var + 1e-5)
+        scale = weight.abs() / denom
+
+        # Match dimensions for broadcasting
+        shape = [1, -1] + [1] * (eps.dim() - 2)  # e.g., [1, C, 1, 1] for conv, [1, F] for linear
+        scale = scale.view(*shape).to(device)
+
+        new_eps = eps * scale
 
         return new_mu, new_eps
+
     
 class IntervalAvgPool2d:
     """
