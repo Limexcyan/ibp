@@ -35,7 +35,7 @@ def load_pickle_file(filepath: str, device: str):
 
 def get_attack_instance(attack_name: str, model, weights, epsilon: float, device: str, alpha_pgd: float = None):
     if attack_name == 'PGD':
-        return PGD(model, weights, eps=epsilon, alpha=alpha_pgd, steps=1, random_start=False, device=device)
+        return PGD(model, weights, eps=epsilon, alpha=alpha_pgd, steps=10, random_start=False, device=device)
     elif attack_name == 'FGSM':
         return FGSM(model, weights, eps=epsilon, device=device)
     elif attack_name == 'AutoAttack':
@@ -55,7 +55,7 @@ def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_atta
     labels = y.argmax(dim=1)
 
     condition = task_id if parameters.get("use_batch_norm") else None
-    logits, _ = model(x, epsilon=0.0, weights=weights, condition=condition)
+    logits, _ = model(x, epsilon=parameters["perturbation_epsilon"], weights=weights, condition=condition)
     preds = logits.argmax(dim=1)
 
     if not attack_type or attack_type.lower() == 'none':
@@ -66,7 +66,7 @@ def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_atta
     attack = get_attack_instance(attack_type, model, weights, epsilon_attack, parameters["device"], alpha_pgd)
     adv_x = attack.forward(x, labels, task_id)
 
-    adv_logits, _ = model(adv_x, epsilon=0.0, weights=weights, condition=condition)
+    adv_logits, _ = model(adv_x, epsilon=parameters["perturbation_epsilon"], weights=weights, condition=condition)
     adv_preds = adv_logits.argmax(dim=1)
 
     acc = 100 * (adv_preds == labels).float().mean()
@@ -262,5 +262,5 @@ if __name__ == "__main__":
         hypernet_model_path_template="./Results/SplitCIFAR100/",
         epsilon_attack=1/255.0,
         alpha_pgd=4/255.0,
-        attack_type="PGD",
+        attack_type="AutoAttack",
     )
