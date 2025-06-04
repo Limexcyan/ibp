@@ -4,6 +4,7 @@
 #SBATCH --cpus-per-tasks=2
 #SBATCH --partition=student
 
+
 # /$HOME/miniconda3/envs/hypnettorch/bin/python /$HOME/ibp/main.py
 cd $HOME/ibp
 echo "--- test run ---"
