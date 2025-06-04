@@ -521,6 +521,26 @@ def set_hyperparameters(dataset, grid_search=False):
                 "saving_folder": f"./Results/ImageNetSubset/",
                 "perturbation_epsilons": [2/255.0, 1/255.0],
             }
+        else:
+            hyperparams = {
+                "seed": [42],
+                "embedding_sizes": [128],
+                "betas": [0.1],
+                "batch_sizes": [32],
+                "learning_rates": [0.001],
+                "hypernetworks_hidden_layers": [[100, 50]],
+                "lambdas": [0.0],
+                "use_batch_norm": True,
+                "number_of_epochs": 200,
+                "target_network": "ResNet",
+                "optimizer": "adam",
+                "augmentation": True,
+                "shape": 64,
+                "target_hidden_layers": None,
+                "saving_folder": f"./Results/ImageNetSubset/",
+                "perturbation_epsilons": [2/255.0],
+            }
+
         hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples"] = 1000
