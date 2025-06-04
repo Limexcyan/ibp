@@ -195,6 +195,7 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         optimizer.zero_grad()
         hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
 
+
         base_eps = parameters["perturbation_epsilon"]
         total_iterations = parameters["number_of_iterations"]
         inv_total_iterations = 1 / total_iterations
@@ -237,11 +238,15 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
                 inds_of_out_heads=None,
                 batch_size=-1,
             )
+
+        tight_loss = (z_upper - z_lower).mean()
+
         loss = (
             loss_current_task
             + parameters["beta"]
             * loss_regularization
             / max(1, current_no_of_task)
+            + parameters["lambda"]*tight_loss
         )
         loss.backward()
         optimizer.step()
@@ -281,7 +286,7 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
             if parameters["best_model_selection_method"] == "val_loss":
 
                 # We need to ensure that the perturbation epsilon reached the maximum value
-                if accuracy > best_val_accuracy and perturbation_epsilon == parameters["perturbation_epsilon"]:
+                if accuracy > best_val_accuracy and iteration >= (parameters["number_of_iterations"]) // 2:
                     print('new best val acc')
                     
                     best_val_accuracy = accuracy
@@ -327,8 +332,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
                 use_fc_bias=parameters["use_bias"],
                 bottleneck_blocks=False,
                 num_classes=output_shape,
-                num_feature_maps=[16, 32, 64, 128],
-                blocks_per_group=[2, 2, 2, 2],
+                num_feature_maps=[8, 16, 32, 64],
+                blocks_per_group=[2, 2, 2, 1],
                 no_weights=True,
                 use_batch_norm=parameters["use_batch_norm"],
                 projection_shortcut=True,
@@ -470,7 +475,7 @@ if __name__ == "__main__":
     path_to_datasets = "/shared/sets/datasets/image-net-subset/"
     dataset = "ImageNetSubset"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'RotatedMNIST', 'ImageNetSubset'
-    create_grid_search = True
+    create_grid_search = False
 
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
 
@@ -485,7 +490,7 @@ if __name__ == "__main__":
         "target_network;target_hidden_layers;"
         "final_model;optimizer;"
         "hypernet_activation_function;learning_rate;batch_size;beta;"
-        "mean_accuracy;std_accuracy;peturbated_epsilon;elapsed_time"
+        "mean_accuracy;std_accuracy;peturbated_epsilon;elapsed_time;lambda"
     )
     append_row_to_file(f'{hyperparameters["saving_folder"]}{summary_results_filename}.csv', header)
 
@@ -497,7 +502,8 @@ if __name__ == "__main__":
             hyperparameters["hypernetworks_hidden_layers"],
             hyperparameters["batch_sizes"],
             hyperparameters["seed"],
-            hyperparameters["perturbation_epsilons"]
+            hyperparameters["perturbation_epsilons"],
+            hyperparameters["lambdas"]
         )
     ):
         embedding_size = elements[0]
@@ -507,6 +513,7 @@ if __name__ == "__main__":
         batch_size = elements[4]
         seed = elements[5]
         perturbation_epsilon = elements[6]
+        lambd = elements[7]
 
         parameters = {
             "input_shape": hyperparameters["shape"],
@@ -529,6 +536,7 @@ if __name__ == "__main__":
             "perturbation_epsilon": perturbation_epsilon,
             "optimizer": hyperparameters["optimizer"],
             "beta": beta,
+            "lambda": lambd,
             "padding": hyperparameters["padding"],
             "use_bias": hyperparameters["use_bias"],
             "use_batch_norm": hyperparameters["use_batch_norm"],
