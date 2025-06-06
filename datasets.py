@@ -269,33 +269,44 @@ def set_hyperparameters(dataset, grid_search=False):
     """
     if dataset == "PermutedMNIST":
         if grid_search:
+            # hyperparams = {
+            #     "embedding_sizes": [24, 48, 96],
+            #     "learning_rates": [0.001],
+            #     "batch_sizes": [128,64],
+            #     "betas": [0.001, 0.0005, 0.005],
+            #     "perturbation_epsilons": [2/255.0, 20/255.0, 25/250.0],
+            #     "hypernetworks_hidden_layers": [[100, 50]],
+            #     "best_model_selection_method": "val_loss",
+            #     "saving_folder": "./Results/grid_search/permuted_mnist/",
+            #     # not for optimization, just for multiple cases
+            #     "seed": [1],
+            # }
             hyperparams = {
-                "embedding_sizes": [24],
+                "embedding_sizes": [96],
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
-                "betas": [0.001, 0.0005, 0.005],
-                "lambdas": [0.0, 0.1, 0.001, 0.0001],
-                "perturbation_epsilons": [0.01],
-                "hypernetworks_hidden_layers": [[100, 100]],
+                "betas": [0.005],
+                "perturbation_epsilons": [25/255.0],
+                "hypernetworks_hidden_layers": [[100, 50]],
                 "best_model_selection_method": "val_loss",
                 "saving_folder": "./Results/grid_search/permuted_mnist/",
                 # not for optimization, just for multiple cases
-                "seed": [1, 2, 3, 4, 5],
+                "seed": [1],
             }
 
         else:
             # Best hyperparameters
             hyperparams = {
-                "seed": [1],
-                "embedding_sizes": [24],
+                "embedding_sizes": [96],
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
-                "betas": [0.0005],
-                "lambdas": [0.1],
-                "perturbation_epsilons": [0.01],
-                "hypernetworks_hidden_layers": [[100, 100]],
-                "best_model_selection_method": "last_model",
-                "saving_folder": "./Results/permuted_mnist_best_hyperparams/",
+                "betas": [0.005],
+                "perturbation_epsilons": [25/255.0],
+                "hypernetworks_hidden_layers": [[100, 50]],
+                "best_model_selection_method": "val_loss",
+                "saving_folder": "./Results/grid_search/permuted_mnist/",
+                # not for optimization, just for multiple cases
+                "seed": [1],
             }
 
         hyperparams["lr_scheduler"] = False
@@ -303,7 +314,7 @@ def set_hyperparameters(dataset, grid_search=False):
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 5000
         hyperparams["no_of_validation_samples_per_class"] = 500
-        hyperparams["target_hidden_layers"] = [1000, 1000]
+        hyperparams["target_hidden_layers"] = [50, 50]
         hyperparams["target_network"] = "IntervalMLP"
         hyperparams["optimizer"] = "adam"
         hyperparams["use_batch_norm"] = False
@@ -324,7 +335,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "batch_sizes": [32],
                 "hypernetworks_hidden_layers": [[100]],
                 "perturbation_epsilons": [0.01],
-                "lambdas": [0.0, 0.1, 0.001, 0.0001],
                 "optimizer": "adam",
                 "use_batch_norm": False,
                 "target_network": "AlexNet",
@@ -334,19 +344,33 @@ def set_hyperparameters(dataset, grid_search=False):
         else:
             hyperparams = {
                 "seed": [42],
-                "embedding_sizes": [128],
+                "embedding_sizes": [48],
                 "betas": [0.01],
                 "batch_sizes": [32],
                 "learning_rates": [0.001],
-                "hypernetworks_hidden_layers": [[200, 50]],
+                "hypernetworks_hidden_layers": [[100, 100]],
                 "perturbation_epsilons": [4/255],
-                "lambdas": [0.1],
-                "use_batch_norm": False,
+                "use_batch_norm": True,
                 "number_of_epochs": 200,
                 "target_network": "AlexNet",
                 "optimizer": "adam",
                 "augmentation": False,
-                "saving_folder": f"./Results/CIFAR_100_best_hyperparams/"}
+                "saving_folder": f"./Results/CIFAR_100_best_hyperparams/"
+                # Best for reduced architecture
+                # "seed": [42],
+                # "embedding_sizes": [512],
+                # "betas": [0.01],
+                # "batch_sizes": [32],
+                # "learning_rates": [0.001],
+                # "hypernetworks_hidden_layers": [[200, 50]],
+                # "perturbation_epsilons": [4/255],
+                # "use_batch_norm": True,
+                # "number_of_epochs": 200,
+                # "target_network": "AlexNet",
+                # "optimizer": "adam",
+                # "augmentation": False,
+                # "saving_folder": f"./Results/CIFAR_100_best_hyperparams/"
+                }
 
         hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
@@ -372,7 +396,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "batch_sizes": [16,32],
                 "hypernetworks_hidden_layers": [[100],[200]],
                 "perturbation_epsilons": [0.01, 0.05, 0.1, 0.5],
-                "lambdas": [0.0, 0.1, 0.001, 0.0001],
                 "optimizer": "adam",
                 "use_batch_norm": True,
                 "target_network": "ResNet",
@@ -390,7 +413,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "learning_rates": [0.0001],
                 "hypernetworks_hidden_layers": [[100, 50]],
                  "perturbation_epsilons": [0.01],
-                "lambdas": [0.1],
                 "use_batch_norm": True,
                 "number_of_epochs": 10,
                 "target_network": "ResNet",
@@ -421,7 +443,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "betas": [0.001],
                 "hypernetworks_hidden_layers": [[25, 25]],
                 "perturbation_epsilons": [0.01],
-                "lambdas": [0.0, 0.1, 0.001, 0.0001],
                 "seed": [1, 2, 3, 4, 5],
                 "best_model_selection_method": "val_loss",
                 "embedding_sizes": [64],
@@ -436,7 +457,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "batch_sizes": [128],
                 "betas": [0.01],
                 "perturbation_epsilons": [0.01],
-                "lambdas": [0.1],
                 "hypernetworks_hidden_layers": [[75, 75]],
                 "augmentation": True,
                 "use_batch_norm_memory": False,
@@ -464,7 +484,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
                 "betas": [0.001, 0.0005, 0.005],
-                "lambdas": [0.0, 0.1, 0.001, 0.0001],
                 "perturbation_epsilons": [0.01],
                 "hypernetworks_hidden_layers": [[100, 100]],
                 "best_model_selection_method": "val_loss",
@@ -480,7 +499,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "batch_sizes": [128],
                 "betas": [0.0005],
                 "perturbation_epsilons": [0.01],
-                "lambdas": [0.1],
                 "hypernetworks_hidden_layers": [[100, 100]],
                 "best_model_selection_method": "last_model",
                 "saving_folder": "./Results/rotated_mnist_best_hyperparams/",
@@ -510,7 +528,6 @@ def set_hyperparameters(dataset, grid_search=False):
                 "batch_sizes": [32],
                 "learning_rates": [0.001],
                 "hypernetworks_hidden_layers": [[100, 50], [200, 50]],
-                "lambdas": [0.0, 0.1, 0.01],
                 "use_batch_norm": True,
                 "number_of_epochs": 200,
                 "target_network": "ResNet",

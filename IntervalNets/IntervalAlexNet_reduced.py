@@ -1,12 +1,11 @@
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 
 from hypnettorch.mnets.classifier_interface import Classifier
 from hypnettorch.mnets.mnet_interface import MainNetInterface
 
 from IntervalNets.interval_modules import *
-
+from IntervalNets.crown_modules import *
 
 class IntervalAlexNet(Classifier):
     """Implementation of interval AlexNet.
@@ -70,18 +69,15 @@ class IntervalAlexNet(Classifier):
 
         _architectures = {
             "cifar": [
-                [32, 3, 4, 4],              
+                [32, 3, 3, 3],              
                 [32],
                 [64, 32, 3, 3],             
                 [64],
-                [128, 64, 2, 2],            
+                [128, 64, 3, 3],            
                 [128],
-
-                [2048, 512],         
-                [2048],
-                [2048, 2048],                 
-                [2048],
-                [num_classes, 2048],        
+                [100, 128],        
+                [100],
+                [num_classes, 100],        
                 [num_classes]
             ]
         }
@@ -126,7 +122,7 @@ class IntervalAlexNet(Classifier):
             start_idx = len(_architectures[self.architecture])
 
             bn_sizes = [
-                32, 64, 128, 2048, 2048
+                32, 64, 128, 100, #512, 512
             ]
 
             bn_layers = list(range(start_idx, start_idx + len(bn_sizes)))
@@ -168,19 +164,15 @@ class IntervalAlexNet(Classifier):
             IntervalConv2d(64, 128, 2),
             IntervalReLU(),
             IntervalBatchNorm(),
-            IntervalAvgPool2d(2),
+            IntervalAvgPool2d(4),
 
             IntervalFlatten(),
 
-            IntervalLinear(128 * 2 * 2, 2048),
+            IntervalLinear(128, 100),
             IntervalReLU(),
             IntervalBatchNorm(),
 
-            IntervalLinear(2048, 2048),
-            IntervalReLU(),
-            IntervalBatchNorm(),
-
-            IntervalLinear(2048, num_classes)
+            IntervalLinear(100, num_classes)
         ]
 
         self._layer_weight_tensors = nn.ParameterList()
@@ -272,7 +264,7 @@ class IntervalAlexNet(Classifier):
                 )
                 bn_idx += 1
                 
-            elif isinstance(layer, (IntervalReLU, IntervalAvgPool2d, IntervalFlatten)):
+            elif isinstance(layer, (IntervalAvgPool2d, IntervalFlatten, IntervalReLU)):
                 mu, eps = layer.forward(mu, eps, device=device)
         return mu, eps
 

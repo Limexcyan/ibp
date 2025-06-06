@@ -257,10 +257,10 @@ def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, 
 
 if __name__ == "__main__":
     run_multiple_seeds(
-        dataset="CIFAR100",
+        dataset="PermutedMNIST",
         path_to_datasets="./Data",
-        hypernet_model_path_template="./Results/SplitCIFAR100/",
-        epsilon_attack=1/255.0,
-        alpha_pgd=4/255.0,
-        attack_type="AutoAttack",
+        hypernet_model_path_template="./Results/PermutedMNIST/",
+        epsilon_attack=25/255.0,
+        alpha_pgd=40/255.0,
+        attack_type="FGSM",
     )

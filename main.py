@@ -239,14 +239,11 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
                 batch_size=-1,
             )
 
-        tight_loss = (z_upper - z_lower).mean()
-
         loss = (
             loss_current_task
             + parameters["beta"]
             * loss_regularization
             / max(1, current_no_of_task)
-            + parameters["lambda"]*tight_loss
         )
         loss.backward()
         optimizer.step()
@@ -332,8 +329,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks, parameters):
                 use_fc_bias=parameters["use_bias"],
                 bottleneck_blocks=False,
                 num_classes=output_shape,
-                num_feature_maps=[8, 16, 32, 64],
-                blocks_per_group=[2, 2, 2, 1],
+                num_feature_maps=[16, 32, 64, 128],
+                blocks_per_group=[2, 2, 2, 2],
                 no_weights=True,
                 use_batch_norm=parameters["use_batch_norm"],
                 projection_shortcut=True,
@@ -453,6 +450,7 @@ def main_running_experiments(path_to_datasets, parameters):
         f'{str(parameters["target_hidden_layers"]).replace(" ", "")};'
         f'{parameters["best_model_selection_method"]};'
         f'{parameters["optimizer"]};'
+        f'{parameters["beta"]};'
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
         f'{parameters["perturbation_epsilon"]};'
@@ -472,7 +470,7 @@ def main_running_experiments(path_to_datasets, parameters):
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "TinyImageNet"
+    dataset = "CIFAR100"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'RotatedMNIST', 'ImageNetSubset'
     create_grid_search = False
 
@@ -489,7 +487,7 @@ if __name__ == "__main__":
         "target_network;target_hidden_layers;"
         "final_model;optimizer;"
         "hypernet_activation_function;learning_rate;batch_size;beta;"
-        "mean_accuracy;std_accuracy;peturbated_epsilon;elapsed_time;lambda"
+        "mean_accuracy;std_accuracy;peturbated_epsilon;elapsed_time"
     )
     append_row_to_file(f'{hyperparameters["saving_folder"]}{summary_results_filename}.csv', header)
 
@@ -501,8 +499,7 @@ if __name__ == "__main__":
             hyperparameters["hypernetworks_hidden_layers"],
             hyperparameters["batch_sizes"],
             hyperparameters["seed"],
-            hyperparameters["perturbation_epsilons"],
-            hyperparameters["lambdas"]
+            hyperparameters["perturbation_epsilons"]
         )
     ):
         embedding_size = elements[0]
@@ -512,7 +509,6 @@ if __name__ == "__main__":
         batch_size = elements[4]
         seed = elements[5]
         perturbation_epsilon = elements[6]
-        lambd = elements[7]
 
         parameters = {
             "input_shape": hyperparameters["shape"],
@@ -535,7 +531,6 @@ if __name__ == "__main__":
             "perturbation_epsilon": perturbation_epsilon,
             "optimizer": hyperparameters["optimizer"],
             "beta": beta,
-            "lambda": lambd,
             "padding": hyperparameters["padding"],
             "use_bias": hyperparameters["use_bias"],
             "use_batch_norm": hyperparameters["use_batch_norm"],
