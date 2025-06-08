@@ -12,6 +12,7 @@ from Attacks.pgd import PGD
 from Attacks.auto_attack import AutoAttack
 
 from IntervalNets.IntervalAlexNet import IntervalAlexNet
+# from IntervalNets.IntervalAlexNet_reduced import IntervalAlexNet
 from IntervalNets.IntervalResNet18 import IntervalResNet18
 from IntervalNets.IntervalMLP import IntervalMLP
 from datasets import (
@@ -39,7 +40,7 @@ def get_attack_instance(attack_name: str, model, weights, epsilon: float, device
     elif attack_name == 'FGSM':
         return FGSM(model, weights, eps=epsilon, device=device)
     elif attack_name == 'AutoAttack':
-        return AutoAttack(model, weights, eps=epsilon, device=device)
+        return AutoAttack(model, weights, eps=epsilon, n_iter=10, device=device)
     raise ValueError(f"Unsupported attack type: {attack_name}")
 
 def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_attack, alpha_pgd=None, 
@@ -191,6 +192,7 @@ def run_experiments(path_to_datasets, parameters, hypernet_path, epsilon_attack,
         results.append({"tested_task": task_id, "accuracy": acc.item()})
 
     df = pd.DataFrame(results).astype({"tested_task": int})
+
     results_path = os.path.join(parameters["saving_folder"], f"results_attacks_{attack_type}.csv")
     df.to_csv(results_path, sep=";", index=False)
     print(f"Results saved to {results_path}")
@@ -200,6 +202,7 @@ def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, 
                        alpha_pgd, attack_type="FGSM", seeds=list(range(5))):
     grid_search = False
     hyperparams = set_hyperparameters(dataset, grid_search)
+    
     for seed in seeds:
         parameters = {
             "embedding_sizes": hyperparams["embedding_sizes"][0],
@@ -218,8 +221,9 @@ def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, 
             "device": hyperparams["device"],
             "perturbation_epsilon": hyperparams["perturbation_epsilons"][0],
             "use_batch_norm": hyperparams["use_batch_norm"],
-            "saving_folder": f"{seed}/",
+            "saving_folder": f"{hypernet_model_path_template}{seed}",
         }
+       
         if "no_of_validation_samples" in hyperparams:
             parameters["no_of_validation_samples"] = hyperparams["no_of_validation_samples"]
         os.makedirs(parameters["saving_folder"], exist_ok=True)
@@ -238,29 +242,31 @@ def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, 
     # Aggregate and save results
     all_dfs = []
     for seed in seeds:
-        result_path = os.path.join(f"{hyperparams['saving_folder']}{seed}/", f"results_attacks_{attack_type}.csv")
+        result_path = os.path.join(f"{hypernet_model_path_template}{seed}/", f"results_attacks_{attack_type}.csv")
         if os.path.exists(result_path):
             df = pd.read_csv(result_path, sep=";")
             df["seed"] = seed
             all_dfs.append(df)
         else:
             print(f"Warning: Missing results file for seed {seed}: {result_path}")
+
     if all_dfs:
         combined_df = pd.concat(all_dfs)
-        stats_df = combined_df.groupby("tested_task")["accuracy"].agg(["mean", "std"]).reset_index()
+        stats_df = combined_df.groupby("seed")["accuracy"].agg(["mean", "std"]).reset_index()
         stats_df.rename(columns={"mean": "accuracy_mean", "std": "accuracy_std"}, inplace=True)
-        aggregated_results_path = os.path.join(hyperparams["saving_folder"], f"aggregated_results_attacks_{attack_type}.csv")
+        aggregated_results_path = os.path.join(hypernet_model_path_template, f"aggregated_results_attacks_{attack_type}.csv")
         stats_df.to_csv(aggregated_results_path, sep=";", index=False)
-        print(f"Averaged results saved to {aggregated_results_path}")
+        print(f"Averaged results saved to {aggregated_results_path}\n")
+        print(f'Averaged mean: {stats_df["accuracy_mean"].mean()}, stdev: {stats_df["accuracy_mean"].std()}')
     else:
         print("No results were found to aggregate.")
 
 if __name__ == "__main__":
     run_multiple_seeds(
-        dataset="PermutedMNIST",
+        dataset="RotatedMNIST",
         path_to_datasets="./Data",
-        hypernet_model_path_template="./Results/PermutedMNIST/",
-        epsilon_attack=25/255.0,
-        alpha_pgd=40/255.0,
-        attack_type="FGSM",
+        hypernet_model_path_template="./Results/RotatedMNIST/ReducedArchitecture/",
+        epsilon_attack=20/255.0,
+        alpha_pgd=25/255.0,
+        attack_type="AutoAttack",
     )
