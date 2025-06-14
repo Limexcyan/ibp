@@ -20,7 +20,8 @@ from datasets import (
     prepare_permuted_mnist_tasks,
     prepare_split_mnist_tasks,
     prepare_rotated_mnist_tasks,
-    prepare_split_cifar100_tasks
+    prepare_split_cifar100_tasks,
+    prepare_tinyimagenet_tasks
 )
 
 def set_seed(seed: int):
@@ -104,6 +105,11 @@ def prepare_dataset(parameters, path_to_datasets):
             path_to_datasets,
             validation_size=parameters["no_of_validation_samples"],
             use_augmentation=parameters["augmentation"],
+        )
+    elif parameters["dataset"] == "TinyImageNet":
+        return prepare_tinyimagenet_tasks(
+            path_to_datasets,
+            seed=parameters["seed"],
         )
     else:
         raise ValueError(f"Unknown dataset type: {parameters['dataset']}")
@@ -263,10 +269,11 @@ def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, 
 
 if __name__ == "__main__":
     run_multiple_seeds(
-        dataset="RotatedMNIST",
+        dataset="TinyImageNet",
         path_to_datasets="./Data",
-        hypernet_model_path_template="./Results/RotatedMNIST/ReducedArchitecture/",
-        epsilon_attack=20/255.0,
-        alpha_pgd=25/255.0,
-        attack_type="AutoAttack",
+        hypernet_model_path_template="./Results/TinyImageNet/eps_0/",
+        epsilon_attack=8/255.0,
+        alpha_pgd=4/255.0,
+        attack_type="FGSM",
+        seeds=list(range(1))
     )
