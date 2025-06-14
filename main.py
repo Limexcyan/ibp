@@ -139,6 +139,24 @@ def plot_heatmap(load_path):
     plt.tight_layout()
     plt.savefig(load_path.replace(".csv", ".pdf"), dpi=300)
     plt.close()
+    
+    
+def mixup_data(x, y, alpha=1.0):
+    """Applies mixup augmentation to the input data."""
+    if alpha > 0:
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1
+    batch_size = x.size()[0]
+    index = torch.randperm(batch_size).to(parameters["device"])
+    mixed_x = lam * x + (1 - lam) * x[index, :]
+    y_a, y_b = y, y[index]
+    return mixed_x, y_a, y_b, lam
+
+
+def mixup_criterion(criterion, pred, y_a, y_b, lam):
+    """Computes the mixup loss."""
+    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
 def train_single_task(hypernetwork, target_network, criterion, parameters, dataset_list_of_tasks, current_no_of_task):
@@ -192,6 +210,9 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         )
         gt_output = tensor_output.max(dim=1)[1]
 
+        # Apply mixup augmentation
+        tensor_input, y_a, y_b, lam = mixup_data(tensor_input, gt_output, alpha=parameters.get("mixup_alpha", 1.0))
+
         optimizer.zero_grad()
         hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
 
@@ -212,20 +233,20 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
 
         z_lower = prediction - eps_prediction
         z_upper = prediction + eps_prediction
-        z = torch.where((nn.functional.one_hot(gt_output, prediction.size(-1))).bool(), z_lower, z_upper)
+        z = torch.where((nn.functional.one_hot(y_a, prediction.size(-1))).bool(), z_lower, z_upper)
 
         # To print only
-        worst_case_error = (z.argmax(dim=1) != gt_output).float().sum().item()
+        worst_case_error = (z.argmax(dim=1) != y_a).float().sum().item()
 
-        loss_spec = criterion(z, gt_output) # Worst-case loss
-        loss_fit = criterion(prediction, gt_output) # Just cross-entropy loss
+        loss_spec = mixup_criterion(criterion, z, y_a, y_b, lam)
+        loss_fit = mixup_criterion(criterion, prediction, y_a, y_b, lam)
         if iteration <= total_iterations // 2:
             kappa = 1 - (iteration * inv_total_iterations)
         else:
             kappa = 0.5
 
         loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
-       
+
         loss_regularization = 0.0
         if current_no_of_task > 0:
             loss_regularization = hreg.calc_fix_target_reg(
@@ -453,8 +474,9 @@ def main_running_experiments(path_to_datasets, parameters):
         f'{parameters["beta"]};'
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
-        f'{parameters["perturbation_epsilon"]};'
+        f'{parameters["beta"]};'
         f"{np.mean(accuracies)};{np.std(accuracies)};"
+        f'{parameters["perturbation_epsilon"]};'
         f"{elapsed_time}"
     )
     append_row_to_file(
