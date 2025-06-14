@@ -210,9 +210,6 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         )
         gt_output = tensor_output.max(dim=1)[1]
 
-        # Apply mixup augmentation
-        tensor_input, y_a, y_b, lam = mixup_data(tensor_input, gt_output, alpha=parameters.get("mixup_alpha", 1.0))
-
         optimizer.zero_grad()
         hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
 
@@ -222,30 +219,55 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
         inv_total_iterations = 1 / total_iterations
         if iteration <= total_iterations // 2:
             perturbation_epsilon = 2 * iteration * inv_total_iterations * base_eps
+            kappa = 1 - (iteration * inv_total_iterations)
         else:
             perturbation_epsilon = base_eps
+            kappa = 0.5
 
+
+        # Apply mixup augmentation
+        use_mixup = False if parameters["mixup_alpha"] is None else True
+        print(f"Mixup is switched: {use_mixup}")
+        if use_mixup:
+            tensor_input, y_a, y_b, lam = mixup_data(tensor_input, gt_output, alpha=parameters["mixup_alpha"])
+            eps_transformed = abs(2*lam-0.5) * perturbation_epsilon
+
+            # Calculate predictions for mixup samples
+            prediction, eps_prediction = target_network.forward(
+                tensor_input,
+                epsilon=eps_transformed, 
+                weights=hnet_weights
+            )
+            z_lower = prediction - eps_prediction
+            z_upper = prediction + eps_prediction
+            z = torch.where((nn.functional.one_hot(y_a, prediction.size(-1))).bool(), z_lower, z_upper)
+
+            loss_spec = mixup_criterion(criterion, z, y_a, y_b, lam)
+            loss_fit = mixup_criterion(criterion, prediction, y_a, y_b, lam)
+
+            mixup_loss = kappa * loss_fit + (1 - kappa) * loss_spec
+        else:
+            mixup_loss = torch.tensor([0.0], device=parameters["device"])
+
+        # Calculate predictions for original samples
         prediction, eps_prediction = target_network.forward(
             tensor_input,
             epsilon=perturbation_epsilon, 
             weights=hnet_weights
         )
-
         z_lower = prediction - eps_prediction
         z_upper = prediction + eps_prediction
-        z = torch.where((nn.functional.one_hot(y_a, prediction.size(-1))).bool(), z_lower, z_upper)
+        z = torch.where((nn.functional.one_hot(gt_output, prediction.size(-1))).bool(), z_lower, z_upper)
+
+        loss_spec = criterion(z, gt_output)
+        loss_fit = criterion(prediction, gt_output)
+
+        standard_loss = kappa * loss_fit + (1 - kappa) * loss_spec
+
+        loss_current_task = standard_loss + mixup_loss
 
         # To print only
-        worst_case_error = (z.argmax(dim=1) != y_a).float().sum().item()
-
-        loss_spec = mixup_criterion(criterion, z, y_a, y_b, lam)
-        loss_fit = mixup_criterion(criterion, prediction, y_a, y_b, lam)
-        if iteration <= total_iterations // 2:
-            kappa = 1 - (iteration * inv_total_iterations)
-        else:
-            kappa = 0.5
-
-        loss_current_task = kappa * loss_fit + (1 - kappa) * loss_spec
+        worst_case_error = (z.argmax(dim=1) != gt_output).float().sum().item()
 
         loss_regularization = 0.0
         if current_no_of_task > 0:
@@ -472,6 +494,7 @@ def main_running_experiments(path_to_datasets, parameters):
         f'{parameters["best_model_selection_method"]};'
         f'{parameters["optimizer"]};'
         f'{parameters["beta"]};'
+        f'{parameters["mixup_alpha"]};'
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
         f'{parameters["beta"]};'
@@ -492,7 +515,7 @@ def main_running_experiments(path_to_datasets, parameters):
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "CIFAR100"
+    dataset = "SplitMNIST"
     # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet', 'RotatedMNIST', 'ImageNetSubset'
     create_grid_search = False
 
@@ -508,6 +531,7 @@ if __name__ == "__main__":
         "dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;"
         "target_network;target_hidden_layers;"
         "final_model;optimizer;"
+        "use_mixup;mixup_alpha;"
         "hypernet_activation_function;learning_rate;batch_size;beta;"
         "mean_accuracy;std_accuracy;peturbated_epsilon;elapsed_time"
     )
@@ -521,7 +545,8 @@ if __name__ == "__main__":
             hyperparameters["hypernetworks_hidden_layers"],
             hyperparameters["batch_sizes"],
             hyperparameters["seed"],
-            hyperparameters["perturbation_epsilons"]
+            hyperparameters["perturbation_epsilons"],
+            hyperparameters["mixup_alphas"]
         )
     ):
         embedding_size = elements[0]
@@ -531,6 +556,7 @@ if __name__ == "__main__":
         batch_size = elements[4]
         seed = elements[5]
         perturbation_epsilon = elements[6]
+        mixup_alpha = elements[7]
 
         parameters = {
             "input_shape": hyperparameters["shape"],
@@ -553,6 +579,7 @@ if __name__ == "__main__":
             "perturbation_epsilon": perturbation_epsilon,
             "optimizer": hyperparameters["optimizer"],
             "beta": beta,
+            "mixup_alpha": mixup_alpha,
             "padding": hyperparameters["padding"],
             "use_bias": hyperparameters["use_bias"],
             "use_batch_norm": hyperparameters["use_batch_norm"],
