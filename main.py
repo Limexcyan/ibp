@@ -227,7 +227,6 @@ def train_single_task(hypernetwork, target_network, criterion, parameters, datas
 
         # Apply mixup augmentation
         use_mixup = False if parameters["mixup_alpha"] is None else True
-        print(f"Mixup is switched: {use_mixup}")
         if use_mixup:
             tensor_input, y_a, y_b, lam = mixup_data(tensor_input, gt_output, alpha=parameters["mixup_alpha"])
             eps_transformed = abs(2*lam-0.5) * perturbation_epsilon
