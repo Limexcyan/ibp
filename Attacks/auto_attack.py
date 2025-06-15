@@ -1,15 +1,18 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import math
+import uuid
 
 class AutoAttack:
     r"""
     AutoAttack implements an ensemble of strong adversarial attacks:
     - APGD with CrossEntropy loss (APGD-CE)
     - APGD with DLR loss (APGD-DLR)
-    - FAB Attack (simplified)
-    - Square Attack (simplified)
+    - FAB Attack (full implementation)
+    - Square Attack (full implementation)
 
-    Distance Measure : Linf or L2
+    Distance Measure: Linf or L2
 
     Arguments:
         model (nn.Module): Model to attack.
@@ -23,31 +26,42 @@ class AutoAttack:
         - images: (N, C, H, W) or (N, D)
         - labels: (N)
 
-    Examples::
+    Examples:
         >>> attack = AutoAttack(model, target_weights, eps=8/255, device="cuda")
         >>> adv_images = attack(images, labels, task_id)
     """
 
     def __init__(self, model, target_weights, eps=8/255, norm='Linf', n_iter=100, device="cuda"):
+        if norm not in ['Linf', 'L2']:
+            raise ValueError("norm must be 'Linf' or 'L2'")
+        if eps <= 0:
+            raise ValueError("eps must be positive")
+        if n_iter <= 0:
+            raise ValueError("n_iter must be positive")
         self.model = model
         self.target_weights = target_weights
         self.eps = eps
         self.norm = norm
         self.n_iter = n_iter
-        self.device = device
+        self.device = torch.device(device)
+        self.model.to(self.device)
+        self.rho = 0.75  # Momentum factor for APGD
+        self.alpha = 2.0 * eps / n_iter  # Initial step size for APGD
 
     def forward(self, images, labels, task_id=None):
         """
         Run the full AutoAttack ensemble on input images.
 
         Args:
-            images (torch.Tensor): Clean input images.
-            labels (torch.Tensor): Ground truth labels.
+            images (torch.Tensor): Clean input images (N, C, H, W) or (N, D).
+            labels (torch.Tensor): Ground truth labels (N).
             task_id (int, optional): Task identifier if applicable.
 
         Returns:
             torch.Tensor: Adversarially perturbed images.
         """
+        if images.shape[0] != labels.shape[0]:
+            raise ValueError("Number of images and labels must match")
         images = images.clone().detach().to(self.device)
         labels = labels.clone().detach().to(self.device)
 
@@ -57,26 +71,42 @@ class AutoAttack:
         adv_fab = self.fab(images, labels, task_id)
         adv_square = self.square(images, labels, task_id)
 
-        # Choose best adversarial examples
-        logits_orig, _ = self.model(images, epsilon=0.0, weights=self.target_weights, condition=task_id)
-        logits_ce, _ = self.model(adv_apgd_ce, epsilon=0.0, weights=self.target_weights, condition=task_id)
-        logits_dlr, _ = self.model(adv_apgd_dlr, epsilon=0.0, weights=self.target_weights, condition=task_id)
-        logits_fab, _ = self.model(adv_fab, epsilon=0.0, weights=self.target_weights, condition=task_id)
-        logits_square, _ = self.model(adv_square, epsilon=0.0, weights=self.target_weights, condition=task_id)
+        # Evaluate all adversarial examples
+        with torch.no_grad():
+            outputs_orig = self._model_forward(images, task_id)
+            outputs_ce = self._model_forward(adv_apgd_ce, task_id)
+            outputs_dlr = self._model_forward(adv_apgd_dlr, task_id)
+            outputs_fab = self._model_forward(adv_fab, task_id)
+            outputs_square = self._model_forward(adv_square, task_id)
 
-        pred_orig = logits_orig.argmax(1)
+        # Vectorized selection of best adversarial examples
+        pred_orig = outputs_orig.argmax(1)
+        pred_ce = outputs_ce.argmax(1)
+        pred_dlr = outputs_dlr.argmax(1)
+        pred_fab = outputs_fab.argmax(1)
+        pred_square = outputs_square.argmax(1)
+
+        # Initialize with APGD-CE
         best_adv = adv_apgd_ce.clone()
+        success_ce = pred_orig == pred_ce
+        success_dlr = pred_orig != pred_dlr
+        success_fab = pred_orig != pred_fab
+        success_square = pred_orig != pred_square
 
-        for i in range(images.size(0)):
-            # Pick the attack that succeeded
-            if pred_orig[i] == logits_ce.argmax(1)[i] and pred_orig[i] != logits_dlr.argmax(1)[i]:
-                best_adv[i] = adv_apgd_dlr[i]
-            if pred_orig[i] == logits_ce.argmax(1)[i] and pred_orig[i] != logits_fab.argmax(1)[i]:
-                best_adv[i] = adv_fab[i]
-            if pred_orig[i] == logits_ce.argmax(1)[i] and pred_orig[i] != logits_square.argmax(1)[i]:
-                best_adv[i] = adv_square[i]
+        # Prioritize attacks: DLR > FAB > Square
+        mask = success_ce & success_dlr
+        best_adv[mask] = adv_apgd_dlr[mask]
+        mask = success_ce & (~success_dlr) & success_fab
+        best_adv[mask] = adv_fab[mask]
+        mask = success_ce & (~success_dlr) & (~success_fab) & success_square
+        best_adv[mask] = adv_square[mask]
 
-        return best_adv
+        return best_adv.detach()
+
+    def _model_forward(self, inputs, task_id):
+        """Helper function to handle model outputs."""
+        outputs = self.model(inputs, epsilon=0.0, weights=self.target_weights, condition=task_id)
+        return outputs[0] if isinstance(outputs, tuple) else outputs
 
     def apgd(self, images, labels, task_id=None, loss_fn="ce"):
         """
@@ -91,41 +121,45 @@ class AutoAttack:
         Returns:
             torch.Tensor: Adversarial examples.
         """
-        images = images.clone().detach()
-        adv_images = images.clone().detach()
-        adv_images.requires_grad = True
+        images = images.clone().detach().to(self.device)
+        adv_images = images.clone().detach().requires_grad_(True)
+        loss_fn = nn.CrossEntropyLoss() if loss_fn == "ce" else self.dlr_loss
 
-        loss = nn.CrossEntropyLoss() if loss_fn == "ce" else self.dlr_loss
+        # Initialize momentum
+        momentum = torch.zeros_like(images).to(self.device)
+        alpha = self.alpha
 
-        for _ in range(self.n_iter):
-            outputs, _ = self.model(adv_images, epsilon=0.0, weights=self.target_weights, condition=task_id)
-            loss_value = loss(outputs, labels)
+        for i in range(self.n_iter):
+            outputs = self._model_forward(adv_images, task_id)
+            if i > 0 and (outputs.argmax(1) != labels).all():
+                break  # Early stopping if all samples are misclassified
 
-            grad = torch.autograd.grad(loss_value, adv_images,
-                                       retain_graph=False, create_graph=False)[0]
+            loss = loss_fn(outputs, labels)
+            grad = torch.autograd.grad(loss, adv_images, retain_graph=False, create_graph=False)[0]
+
+            # Momentum update
+            momentum = self.rho * momentum + grad / (torch.norm(grad.view(grad.size(0), -1), dim=1, keepdim=True) + 1e-10)
 
             if self.norm == 'Linf':
-                adv_images = adv_images + self.eps * grad.sign()
-                adv_images = torch.max(torch.min(adv_images, images + self.eps), images - self.eps)
-                adv_images = torch.clamp(adv_images, 0, 1)
-            elif self.norm == 'L2':
-                grad_norm = torch.norm(grad.view(grad.size(0), -1), dim=1)
-                grad_norm = grad_norm.view(-1, *([1] * (grad.dim() - 1)))
-                normalized_grad = grad / (grad_norm + 1e-10)
-                adv_images = adv_images + self.eps * normalized_grad
+                adv_images = adv_images.detach() + alpha * momentum.sign()
+                delta = torch.clamp(adv_images - images, -self.eps, self.eps)
+                adv_images = torch.clamp(images + delta, 0, 1).requires_grad_(True)
+            else:  # L2
+                adv_images = adv_images.detach() + alpha * momentum
                 delta = adv_images - images
                 delta_norm = torch.norm(delta.view(delta.size(0), -1), dim=1)
-                delta = delta * (self.eps / (delta_norm + 1e-10)).view(-1, *([1] * (delta.dim() - 1)))
-                adv_images = torch.clamp(images + delta, 0, 1)
+                factor = torch.clamp(self.eps / (delta_norm + 1e-10), max=1.0)
+                delta = delta * factor.view(-1, *([1] * (delta.dim() - 1)))
+                adv_images = torch.clamp(images + delta, 0, 1).requires_grad_(True)
 
-            adv_images = adv_images.clone().detach()
-            adv_images.requires_grad = True
+            # Adaptive step size
+            alpha = self.alpha * (1 - i / self.n_iter)  # Linear decay
 
         return adv_images.detach()
 
     def fab(self, images, labels, task_id=None):
         """
-        Perform a simplified FAB attack.
+        Perform FAB (Fast Adaptive Boundary) attack.
 
         Args:
             images (torch.Tensor): Input images.
@@ -135,44 +169,141 @@ class AutoAttack:
         Returns:
             torch.Tensor: Adversarial examples.
         """
-        images = images.clone().detach()
-        adv_images = images.clone().detach()
-        adv_images.requires_grad = True
+        images = images.clone().detach().to(self.device)
+        adv_images = images.clone().detach().requires_grad_(True)
+        batch_size = images.shape[0]
+        alpha = self.eps / 5.0  # Initial step size
+        eta = torch.zeros_like(images).to(self.device)
 
-        for _ in range(int(self.n_iter // 5)):
-            outputs, _ = self.model(adv_images, epsilon=0.0, weights=self.target_weights, condition=task_id)
-            preds = outputs.argmax(1)
+        for i in range(self.n_iter):
+            outputs = self._model_forward(adv_images, task_id)
+            if i > 0 and (outputs.argmax(1) != labels).all():
+                break  # Early stopping
 
-            loss = (outputs.gather(1, preds.view(-1,1)).squeeze() -
-                    outputs.gather(1, labels.view(-1,1)).squeeze()).mean()
+            # Compute loss: maximize true class logit, minimize predicted class logit
+            pred_labels = outputs.argmax(1)
+            true_logits = outputs.gather(1, labels.view(-1, 1)).squeeze()
+            pred_logits = outputs.gather(1, pred_labels.view(-1, 1)).squeeze()
+            loss = (true_logits - pred_logits).mean()
 
-            grad = torch.autograd.grad(loss, adv_images,
-                                       retain_graph=False, create_graph=False)[0]
+            grad = torch.autograd.grad(loss, adv_images, retain_graph=False, create_graph=False)[0]
 
-            adv_images = adv_images - 0.5 * grad.sign()
-            adv_images = torch.clamp(adv_images, 0, 1)
+            # Update with momentum
+            eta = 0.9 * eta + grad
+            norm = torch.norm(eta.view(batch_size, -1), dim=1, keepdim=True) + 1e-10
+            eta = eta / norm.view(batch_size, *([1] * (eta.dim() - 1)))
+
+            if self.norm == 'Linf':
+                adv_images = adv_images.detach() - alpha * eta.sign()
+                delta = torch.clamp(adv_images - images, -self.eps, self.eps)
+                adv_images = torch.clamp(images + delta, 0, 1).requires_grad_(True)
+            else:  # L2
+                adv_images = adv_images.detach() - alpha * eta
+                delta = adv_images - images
+                delta_norm = torch.norm(delta.view(batch_size, -1), dim=1)
+                factor = torch.clamp(self.eps / (delta_norm + 1e-10), max=1.0)
+                delta = delta * factor.view(-1, *([1] * (delta.dim() - 1)))
+                adv_images = torch.clamp(images + delta, 0, 1).requires_grad_(True)
+
+            # Adaptive step size
+            alpha = self.eps * (1 - i / self.n_iter) / 5.0
 
         return adv_images.detach()
 
     def square(self, images, labels, task_id=None):
         """
-        Perform a simplified Square attack (random perturbation).
+        Perform Square Attack (random localized perturbations).
 
         Args:
-            images (torch.Tensor): Input images.
+            images (torch.Tensor): Input images or vectors.
             labels (torch.Tensor): True labels.
             task_id (int, optional): Task ID.
 
         Returns:
             torch.Tensor: Adversarial examples.
         """
-        images = images.clone().detach()
-        adv_images = images.clone()
+        images = images.clone().detach().to(self.device)
 
-        for _ in range(int(self.n_iter // 10)):
-            delta = torch.rand_like(adv_images, device=self.device) * 2 * self.eps - self.eps
-            adv_images = adv_images + delta
-            adv_images = torch.clamp(adv_images, 0, 1)
+        if images.dim() == 4:
+            # Image case: (B, C, H, W)
+            batch_size, channels, height, width = images.shape
+            adv_images = images.clone()
+            delta = torch.zeros_like(images).to(self.device)
+            p = 0.1  # Initial perturbation probability
+            window_size = max(int(min(height, width) * 0.2), 2)  # Initial window size
+
+            for i in range(self.n_iter):
+                with torch.no_grad():
+                    outputs = self._model_forward(adv_images, task_id)
+                    if (outputs.argmax(1) != labels).all():
+                        break  # Early stopping
+
+                for _ in range(int(math.ceil(batch_size * p))):
+                    idx = torch.randint(0, batch_size, (1,)).item()
+                    h_start = torch.randint(0, height - window_size + 1, (1,)).item()
+                    w_start = torch.randint(0, width - window_size + 1, (1,)).item()
+                    perturbation = torch.rand(channels, window_size, window_size, device=self.device) * 2 * self.eps - self.eps
+
+                    # Apply perturbation
+                    if self.norm == 'Linf':
+                        delta[idx, :, h_start:h_start + window_size, w_start:w_start + window_size] = perturbation
+                        delta = torch.clamp(delta, -self.eps, self.eps)
+                        adv_images_temp = torch.clamp(images + delta, 0, 1)
+                    else:  # L2 norm
+                        delta[idx, :, h_start:h_start + window_size, w_start:w_start + window_size] = perturbation
+                        delta_norm = torch.norm(delta.view(batch_size, -1), dim=1)
+                        factor = torch.clamp(self.eps / (delta_norm + 1e-10), max=1.0)
+                        delta = delta * factor.view(-1, *([1] * (delta.dim() - 1)))
+                        adv_images_temp = torch.clamp(images + delta, 0, 1)
+
+                    outputs_temp = self._model_forward(adv_images_temp, task_id)
+                    if outputs_temp.argmax(1)[idx] != labels[idx]:
+                        adv_images[idx] = adv_images_temp[idx]
+                        delta[idx] = adv_images[idx] - images[idx]
+
+                p = max(0.03, p * 0.95)
+                window_size = max(2, int(window_size * 0.98))
+
+        elif images.dim() == 2:
+            # Non-image case: (B, D) - treat perturbation as random noise within eps-ball
+            batch_size, dim = images.shape
+            adv_images = images.clone()
+            delta = torch.zeros_like(images).to(self.device)
+            p = 0.1
+
+            for i in range(self.n_iter):
+                with torch.no_grad():
+                    outputs = self._model_forward(adv_images, task_id)
+                    if (outputs.argmax(1) != labels).all():
+                        break  # Early stopping
+
+                for _ in range(int(math.ceil(batch_size * p))):
+                    idx = torch.randint(0, batch_size, (1,)).item()
+                    # Perturb a random contiguous block in the vector
+                    window_size = max(int(dim * 0.2), 2)
+                    start = torch.randint(0, dim - window_size + 1, (1,)).item()
+                    perturbation = torch.rand(window_size, device=self.device) * 2 * self.eps - self.eps
+
+                    if self.norm == 'Linf':
+                        delta[idx, start:start + window_size] = perturbation
+                        delta = torch.clamp(delta, -self.eps, self.eps)
+                        adv_images_temp = torch.clamp(images + delta, 0, 1)
+                    else:  # L2 norm
+                        delta[idx, start:start + window_size] = perturbation
+                        delta_norm = torch.norm(delta, dim=1)
+                        factor = torch.clamp(self.eps / (delta_norm + 1e-10), max=1.0)
+                        delta = delta * factor.view(-1, 1)
+                        adv_images_temp = torch.clamp(images + delta, 0, 1)
+
+                    outputs_temp = self._model_forward(adv_images_temp, task_id)
+                    if outputs_temp.argmax(1)[idx] != labels[idx]:
+                        adv_images[idx] = adv_images_temp[idx]
+                        delta[idx] = adv_images[idx] - images[idx]
+
+                p = max(0.03, p * 0.95)
+
+        else:
+            raise ValueError(f"Unsupported input dimension {images.dim()} for Square attack.")
 
         return adv_images.detach()
 
@@ -188,18 +319,15 @@ class AutoAttack:
             torch.Tensor: Loss value.
         """
         sorted_logits, _ = outputs.sort(dim=1, descending=True)
-        correct_logit = outputs.gather(1, labels.unsqueeze(1)).squeeze()
-        second_best_logit = sorted_logits[:, 1]
-        best_logit = sorted_logits[:, 0]
-
-        if outputs.size(1) >= 3:
-            third_best_logit = sorted_logits[:, 2]
-        else:
-            third_best_logit = sorted_logits[:, 1]
-
-        loss = -(correct_logit - second_best_logit) / (best_logit - third_best_logit + 1e-12)
+        correct_logits = outputs.gather(1, labels.view(-1, 1)).squeeze()
+        best_non_target = sorted_logits[:, 0]
+        second_best = sorted_logits[:, 1]
+        third_best = sorted_logits[:, 2] if outputs.shape[1] >= 3 else sorted_logits[:, 1]
+        
+        # Avoid division by zero
+        denominator = best_non_target - third_best + 1e-12
+        loss = -(correct_logits - second_best) / denominator
         return loss.mean()
-
 
     def __call__(self, images, labels, task_id=None):
         """
@@ -213,4 +341,4 @@ class AutoAttack:
         Returns:
             torch.Tensor: Adversarial examples.
         """
-        return self.attack(images, labels, task_id)
+        return self.forward(images, labels, task_id)
