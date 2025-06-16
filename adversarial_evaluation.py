@@ -9,7 +9,7 @@ from hypnettorch.hnets import HMLP
 
 from Attacks.fgsm import FGSM
 from Attacks.pgd import PGD
-from Attacks.auto_attack import AutoAttack
+from Attacks.auto_attack import AutoAttackWrapper as AutoAttack
 
 from IntervalNets.IntervalAlexNet import IntervalAlexNet
 # from IntervalNets.IntervalAlexNet_reduced import IntervalAlexNet
@@ -35,13 +35,14 @@ def load_pickle_file(filepath: str, device: str):
     return torch.load(filepath, map_location=torch.device(device))
        
 
-def get_attack_instance(attack_name: str, model, weights, epsilon: float, device: str, alpha_pgd: float = None):
+def get_attack_instance(attack_name: str, model, weights, epsilon: float, device: str, alpha_pgd: float = None, 
+                        dataset: str = None):
     if attack_name == 'PGD':
-        return PGD(model, weights, eps=epsilon, alpha=alpha_pgd, steps=10, random_start=False, device=device)
+        return PGD(model, weights, eps=epsilon, alpha=alpha_pgd, steps=100, random_start=False, device=device)
     elif attack_name == 'FGSM':
         return FGSM(model, weights, eps=epsilon, device=device)
     elif attack_name == 'AutoAttack':
-        return AutoAttack(model, weights, eps=epsilon, n_iter=10, device=device)
+        return AutoAttack(model, weights, eps=epsilon, dataset=dataset, device=device)
     raise ValueError(f"Unsupported attack type: {attack_name}")
 
 def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_attack, alpha_pgd=None, 
@@ -54,6 +55,7 @@ def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_atta
     x = data.input_to_torch_tensor(input_data, parameters["device"], mode="inference")
     y = data.output_to_torch_tensor(output_data, parameters["device"], mode="inference")
     x.requires_grad = True
+    y.requires_grad = True
     labels = y.argmax(dim=1)
 
     condition = task_id if parameters.get("use_batch_norm") else None
@@ -65,7 +67,7 @@ def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_atta
         print(f"Task {task_id} | Clean Accuracy: {acc:.5f}%")
         return acc
 
-    attack = get_attack_instance(attack_type, model, weights, epsilon_attack, parameters["device"], alpha_pgd)
+    attack = get_attack_instance(attack_type, model, weights, epsilon_attack, parameters["device"], alpha_pgd, parameters["dataset"])
     adv_x = attack.forward(x, labels, task_id)
 
     adv_logits, _ = model(adv_x, epsilon=parameters["perturbation_epsilon"], weights=weights, condition=condition)
@@ -269,11 +271,11 @@ def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, 
 
 if __name__ == "__main__":
     run_multiple_seeds(
-        dataset="TinyImageNet",
+        dataset="CIFAR100",
         path_to_datasets="./Data",
-        hypernet_model_path_template="./Results/TinyImageNet/eps_0/",
-        epsilon_attack=8/255.0,
+        hypernet_model_path_template="./Results/CIFAR100/Playground/",
+        epsilon_attack=2/255.0,
         alpha_pgd=4/255.0,
-        attack_type="FGSM",
+        attack_type="AutoAttack",
         seeds=list(range(1))
     )
