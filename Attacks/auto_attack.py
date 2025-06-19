@@ -13,6 +13,7 @@ class AttackModelWrapper(nn.Module):
     Args:
         model (nn.Module): The neural network model to be wrapped.
         weights (Any): The weights or parameters to be used by the model during the forward pass.
+        num_classes_total (int): The total number of classes in the dataset, used for padding logits.
         device (torch.device or str): The device on which computations will be performed.
 
     Methods:
@@ -25,18 +26,20 @@ class AttackModelWrapper(nn.Module):
         wrapper = AttackModelWrapper(model, weights, device)
         logits = wrapper(input_tensor)
     """
-    def __init__(self, model, weights, device):
+    def __init__(self, model, weights, num_classes_total, device):
         super(AttackModelWrapper, self).__init__()
         self.model = model
         self.weights = weights
+        self.num_classes_total = num_classes_total
         self.device = device
 
     def forward(self, x):
         logits, _ = self.model(x, epsilon=0.0, weights=self.weights, condition=None)
 
-        # Pad logits to 200 if needed
-        if logits.shape[1] < 200:
-            pad_size = 200 - logits.shape[1]
+        # Pad logits to full number of classes with very negative values
+        num_classes = logits.size(1)
+        if num_classes < self.num_classes_total:
+            pad_size = self.num_classes_total - num_classes
             padding = torch.full((logits.size(0), pad_size), -1e10, device=logits.device)
             logits = torch.cat([logits, padding], dim=1)
 
@@ -52,6 +55,7 @@ class AutoAttackWrapper(AutoAttack):
         weights (str or dict): Path to the model weights or a state dict.
         eps (float): Maximum perturbation allowed for the attack.
         dataset (str): Name of the dataset (e.g., "PermutedMNIST", "CIFAR100").
+        num_classes_total (int): Total number of classes in the dataset for padding logits.
         device (torch.device or str): Device to run the attack on.
         norm (str, optional): Norm to use for the attack ('Linf', 'L2', etc.). Default is 'Linf'.
         version (str, optional): Version of AutoAttack to use. Default is 'custom'.
@@ -68,8 +72,8 @@ class AutoAttackWrapper(AutoAttack):
             Returns:
                 dict: Results of the adversarial evaluation.
     """
-    def __init__(self, model, weights, eps, dataset, device, norm='Linf', version='custom'):
-        self.model_wrapper = AttackModelWrapper(model, weights, device)
+    def __init__(self, model, weights, eps, dataset, num_classes_total, device, norm='Linf', version='custom'):
+        self.model_wrapper = AttackModelWrapper(model, weights, num_classes_total, device)
 
         super(AutoAttackWrapper, self).__init__(
             model=self.model_wrapper,
