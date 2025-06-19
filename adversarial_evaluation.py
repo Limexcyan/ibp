@@ -12,7 +12,6 @@ from Attacks.pgd import PGD
 from Attacks.auto_attack import AutoAttackWrapper as AutoAttack
 
 from IntervalNets.IntervalAlexNet import IntervalAlexNet
-# from IntervalNets.IntervalAlexNet_reduced import IntervalAlexNet
 from IntervalNets.IntervalResNet18 import IntervalResNet18
 from IntervalNets.IntervalMLP import IntervalMLP
 from datasets import (
@@ -35,18 +34,18 @@ def load_pickle_file(filepath: str, device: str):
     return torch.load(filepath, map_location=torch.device(device))
        
 
-def get_attack_instance(attack_name: str, model, weights, epsilon: float, device: str, alpha_pgd: float = None, 
-                        dataset: str = None):
+def get_attack_instance(attack_name: str, model, weights, epsilon: float, num_classes_total: int, 
+                        device: str, alpha_pgd: float = None, pgd_iterations: int = 100, dataset: str = None):
     if attack_name == 'PGD':
-        return PGD(model, weights, eps=epsilon, alpha=alpha_pgd, steps=100, random_start=False, device=device)
+        return PGD(model, weights, eps=epsilon, alpha=alpha_pgd, steps=pgd_iterations, random_start=False, device=device)
     elif attack_name == 'FGSM':
         return FGSM(model, weights, eps=epsilon, device=device)
     elif attack_name == 'AutoAttack':
-        return AutoAttack(model, weights, eps=epsilon, dataset=dataset, device=device)
+        return AutoAttack(model, weights, eps=epsilon, dataset=dataset, num_classes_total=num_classes_total, device=device)
     raise ValueError(f"Unsupported attack type: {attack_name}")
 
-def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_attack, alpha_pgd=None, 
-                   attack_type=None, task_id=None):
+def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_attack, num_classes_total, alpha_pgd=None, 
+                   pgd_iterations=100, attack_type=None, task_id=None):
     model = deepcopy(model).eval()
 
     input_data = getattr(data, f'get_{dataset_split}_inputs')()
@@ -67,7 +66,8 @@ def evaluate_model(data, model, weights, parameters, dataset_split, epsilon_atta
         print(f"Task {task_id} | Clean Accuracy: {acc:.5f}%")
         return acc
 
-    attack = get_attack_instance(attack_type, model, weights, epsilon_attack, parameters["device"], alpha_pgd, parameters["dataset"])
+    attack = get_attack_instance(attack_type, model, weights, epsilon_attack, num_classes_total, parameters["device"], alpha_pgd, 
+                                 pgd_iterations, parameters["dataset"])
     adv_x = attack.forward(x, labels, task_id)
 
     adv_logits, _ = model(adv_x, epsilon=parameters["perturbation_epsilon"], weights=weights, condition=condition)
@@ -112,6 +112,7 @@ def prepare_dataset(parameters, path_to_datasets):
         return prepare_tinyimagenet_tasks(
             path_to_datasets,
             seed=parameters["seed"],
+            number_of_tasks=parameters["number_of_tasks"],
         )
     else:
         raise ValueError(f"Unknown dataset type: {parameters['dataset']}")
@@ -166,7 +167,8 @@ def create_hypernetwork(parameters, param_shapes):
         num_cond_embs=parameters["number_of_tasks"]
     ).to(parameters["device"])
 
-def run_experiments(path_to_datasets, parameters, hypernet_path, epsilon_attack, alpha_pgd=None, attack_type=None):
+def run_experiments(path_to_datasets, parameters, hypernet_path, epsilon_attack, num_classes_total,
+                    alpha_pgd=None, pgd_iterations=100, attack_type=None):
     print(f"Running experiments for {parameters['dataset']} with attack type: {attack_type}")
     datasets = prepare_dataset(parameters, path_to_datasets)
     output_size = datasets[0].get_train_outputs()[0].shape[0]
@@ -192,7 +194,9 @@ def run_experiments(path_to_datasets, parameters, hypernet_path, epsilon_attack,
             parameters,
             dataset_split='test',
             epsilon_attack=epsilon_attack,
+            num_classes_total=num_classes_total,
             alpha_pgd=alpha_pgd,
+            pgd_iterations=pgd_iterations,
             attack_type=attack_type,
             task_id=task_id
         )
@@ -207,7 +211,7 @@ def run_experiments(path_to_datasets, parameters, hypernet_path, epsilon_attack,
     return df
 
 def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, epsilon_attack, 
-                       alpha_pgd, attack_type="FGSM", seeds=list(range(5))):
+                       alpha_pgd, pgd_iterations, attack_type="FGSM", num_classes_total=10, seeds=list(range(5))):
     grid_search = False
     hyperparams = set_hyperparameters(dataset, grid_search)
     
@@ -244,7 +248,9 @@ def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, 
             parameters=parameters,
             hypernet_path=f"{hypernet_path}/{seed}/hnet.pt",
             epsilon_attack=epsilon_attack,
+            num_classes_total=num_classes_total,
             alpha_pgd=alpha_pgd,
+            pgd_iterations=pgd_iterations,
             attack_type=attack_type
         )
     # Aggregate and save results
@@ -271,11 +277,13 @@ def run_multiple_seeds(dataset, path_to_datasets, hypernet_model_path_template, 
 
 if __name__ == "__main__":
     run_multiple_seeds(
-        dataset="CIFAR100",
+        dataset="PermutedMNIST",
         path_to_datasets="./Data",
-        hypernet_model_path_template="./Results/CIFAR100/Playground/",
+        hypernet_model_path_template="./Results/PermutedMNIST/FullArchitectureWithMixup/",
         epsilon_attack=2/255.0,
-        alpha_pgd=4/255.0,
-        attack_type="AutoAttack",
-        seeds=list(range(1))
+        alpha_pgd=40/255.0,
+        pgd_iterations=100,
+        attack_type="PGD",
+        num_classes_total=10,
+        seeds=list(range(2))
     )
