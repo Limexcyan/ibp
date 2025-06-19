@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 
 from autoattack import AutoAttack
 
@@ -32,6 +33,13 @@ class AttackModelWrapper(nn.Module):
 
     def forward(self, x):
         logits, _ = self.model(x, epsilon=0.0, weights=self.weights, condition=None)
+
+        # Pad logits to 200 if needed
+        if logits.shape[1] < 200:
+            pad_size = 200 - logits.shape[1]
+            padding = torch.full((logits.size(0), pad_size), -1e10, device=logits.device)
+            logits = torch.cat([logits, padding], dim=1)
+
         return logits
 
     
