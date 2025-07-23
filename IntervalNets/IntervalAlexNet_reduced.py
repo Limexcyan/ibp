@@ -5,6 +5,7 @@ from hypnettorch.mnets.classifier_interface import Classifier
 from hypnettorch.mnets.mnet_interface import MainNetInterface
 
 from IntervalNets.interval_modules import *
+from IntervalNets.crown_modules import *
 
 class IntervalAlexNet(Classifier):
     """Implementation of interval AlexNet.

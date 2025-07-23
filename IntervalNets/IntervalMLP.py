@@ -91,6 +91,9 @@ class IntervalMLP(nn.Module, MainNetInterface):
         w_weights = []
         b_weights = []
 
+        if len(x.shape) == 4:
+            x = x.view(x.shape[0], -1)
+
         for i, p in enumerate(weights):
             if self.has_bias and i % 2 == 1:
                 b_weights.append(p)

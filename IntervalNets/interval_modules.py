@@ -345,6 +345,58 @@ class IntervalAvgPool2d:
         new_mu, new_eps = (z_upper+z_lower)/2.0, (z_upper-z_lower)/2.0
 
         return new_mu, new_eps
+    
+class IntervalMaxPool2d:
+    """
+    Interval version of MaxPool2d.
+    See: https://pytorch.org/docs/stable/generated/torch.nn.functional.max_pool2d.html
+    """
+    def __init__(self, kernel_size, stride=None, padding=0):
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+
+    def forward(self, mu, eps, device="cuda") -> Tuple[torch.Tensor,torch.Tensor]:
+        """
+        Applies interval max-pooling.
+
+        Parameters:
+        -----------
+            mu: torch.Tensor
+                Midpoint of the interval.
+            eps: torch.Tensor
+                Radius of the interval.
+            device: str
+                Device for computation ("cpu" or "cuda").
+
+        Returns:
+        --------
+            new_mu: torch.Tensor
+                Pooled midpoint.
+            new_eps: torch.Tensor
+                Pooled radius.
+        """
+        mu = mu.to(device)
+        eps = eps.to(device)
+
+        z_lower, z_upper = mu - eps, mu + eps
+        z_lower = F.max_pool2d(
+            z_lower,
+            self.kernel_size,
+            self.stride,
+            self.padding,
+        )
+
+        z_upper = F.max_pool2d(
+            z_upper,
+            self.kernel_size,
+            self.stride,
+            self.padding,
+        )
+
+        new_mu, new_eps = (z_upper+z_lower)/2.0, (z_upper-z_lower)/2.0
+
+        return new_mu, new_eps
 
     
 class IntervalDropout:

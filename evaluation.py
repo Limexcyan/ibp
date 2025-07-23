@@ -22,7 +22,7 @@ import seaborn as sns
 import os
 from numpy.testing import assert_almost_equal
 from collections import defaultdict
-
+from typing import List, Dict
 
 #####
 ### Attention: DEPRECATED!!!!
@@ -310,12 +310,11 @@ def load_and_evaluate_networks(
     )
     return dataframe
 
-
 def calculate_backward_transfer(dataframe):
     """
     Calculate backward transfer based on dataframe with results
-    containing columns: 'loaded_task', 'evaluated_task',
-    'loaded_accuracy' and 'random_net_accuracy'.
+    containing columns: 'after_learning_of_task', 'tested_task',
+    'accuracy'.
     ---
     BWT = 1/(N-1) * sum_{i=1}^{N-1} A_{N,i} - A_{i,i}
     where N is the number of tasks, A_{i,j} is the result
@@ -323,22 +322,105 @@ def calculate_backward_transfer(dataframe):
     on the j-th task.
 
     Returns a float with backward transfer result.
+
+    Reference: https://github.com/gmum/HyperMask/blob/main/evaluation.py
+
     """
     backward_transfer = 0
-    number_of_last_task = int(dataframe.max()["loaded_task"])
+    number_of_last_task = int(dataframe.max()["after_learning_of_task"])
     # Indeed, number_of_last_task represents the number of tasks - 1
     # due to the numeration starting from 0
     for i in range(number_of_last_task + 1):
         trained_on_last_task = dataframe.loc[
-            (dataframe["loaded_task"] == number_of_last_task)
-            & (dataframe["evaluated_task"] == i)
-        ]["loaded_accuracy"].values[0]
+            (dataframe["after_learning_of_task"] == number_of_last_task)
+            & (dataframe["tested_task"] == i)
+        ]["accuracy"].values[0]
         trained_on_the_same_task = dataframe.loc[
-            (dataframe["loaded_task"] == i) & (dataframe["evaluated_task"] == i)
-        ]["loaded_accuracy"].values[0]
+            (dataframe["after_learning_of_task"] == i) & (dataframe["tested_task"] == i)
+        ]["accuracy"].values[0]
         backward_transfer += trained_on_last_task - trained_on_the_same_task
     backward_transfer /= number_of_last_task
     return backward_transfer
+
+def calculate_BWT_different_files(paths, forward=True):
+    """
+    Calculate mean backward transfer with corresponding
+    sample standard deviations based on results saved in .csv files.
+    
+    Reference: https://github.com/gmum/HyperMask/blob/main/evaluation.py
+
+    Parameters :
+    ---------
+      paths: List
+        Contains path to the results files.
+      forward: Optional, Boolean
+        Defines whether forward transfer will be calculated.
+
+    Returns:
+    --------
+      BWTs: List[float]
+        Contains consecutive backward transfer values.
+    """
+    BWTs = []
+    for path in paths:
+        dataframe = pd.read_csv(path, sep=";", index_col=0)
+        BWTs.append(calculate_backward_transfer(dataframe))
+    print(
+        f"Mean backward transfer: {np.mean(BWTs)}, "
+        f"population standard deviation: {np.std(BWTs)}"
+    )
+    return BWTs
+
+def get_subdirs(path: str = "./") -> List[str]:
+    """
+    Find the immediate subdirectories given a path to a directory of interest.
+
+    Parameters :
+    ---------
+      path: str
+        A path to the directory of interest.
+
+    Returns:
+    --------
+      subdirs: List[str]
+        Contains names of subdirectories of the given path directory.
+    """
+    subdirs = [name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
+    return subdirs
+
+def calculate_BWT_different_datasets(datasets_folder: str = './HINT_models') -> Dict:
+    """
+    This function assumes that the dataset_folder contains directories
+    such as "CIFAR100/known_task_id/1/results.csv".
+
+    Parameters :
+    ---------
+      datasets_folder: str
+        A path to the datasets folders with results.
+
+    Returns:
+    --------
+      mean_results_dict: Dict
+        Contains average backward transfer values with standard deviation per dataset and available scenario.
+    """
+
+    datasets = get_subdirs(datasets_folder)
+    mean_results_dict = {}
+
+    for dataset in datasets:
+        temp_path = f"{datasets_folder}/{dataset}"
+        scenarios = get_subdirs(temp_path)
+
+        for scenario in scenarios:
+            temp_scenario_path = f"{temp_path}/{scenario}"
+            seeds = get_subdirs(temp_scenario_path)
+            paths = [f"{temp_scenario_path}/{seed}/results.csv" for seed in seeds]
+
+            bwt = calculate_BWT_different_files(paths, forward = False)
+            mean_results_dict[f"{dataset}: {scenario}"] = [np.round(np.mean(bwt),3), np.round(np.std(bwt),2)]
+
+    (pd.DataFrame.from_dict(data=mean_results_dict, orient='index', columns=['Avg', 'Std']).to_csv(f'{datasets_folder}/avg_bwt_results.csv', header=True))
+    return mean_results_dict
 
 
 def calculate_forward_transfer(dataframe):
@@ -370,39 +452,6 @@ def calculate_forward_transfer(dataframe):
     forward_transfer /= number_of_tasks - 1
     return forward_transfer
 
-
-def calculate_FWT_BWT_different_files(paths, forward=True):
-    """
-    Calculate mean forward and (or) backward transfer with corresponding
-    sample standard deviations based on results saved in .csv files
-
-    Argument:
-    ---------
-      *paths* (list) contains path to the results files
-      *forward* (optional Boolean) defines whether forward transfer will
-                be calculated
-    Returns:
-    --------
-      *FWTs* (list of floats) contains consecutive forward transfer values
-             or an empty list (if forward is False)
-      *BWTs* (list of floats) contains consecutive backward transfer values
-    """
-    FWTs, BWTs = [], []
-    for path in paths:
-        dataframe = pd.read_csv(path, sep=";", index_col=0)
-        if forward:
-            FWTs.append(calculate_forward_transfer(dataframe))
-        BWTs.append(calculate_backward_transfer(dataframe))
-    if forward:
-        print(
-            f"Mean forward transfer: {np.mean(FWTs)}, "
-            f"population standard deviation: {np.std(FWTs)}"
-        )
-    print(
-        f"Mean backward transfer: {np.mean(BWTs)}, "
-        f"population standard deviation: {np.std(BWTs)}"
-    )
-    return FWTs, BWTs
 
 
 def evaluate_target_network(
@@ -890,4 +939,4 @@ def test_calculate_transfers():
 
 
 if __name__ == "__main__":
-   pass
+    pass
